@@ -5,9 +5,9 @@ import { getAllPosts } from "@/lib/posts"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 export const metadata: Metadata = {
-  title: "Blog",
+  title: "Blog — Gustavo Lobo | Backend & Distributed Systems",
   description:
-    "Technical articles about software engineering, architecture, and real-world systems."
+    "Technical articles on backend engineering, distributed systems, Domain-Driven Design, event-driven architectures, and operating reliable systems in production."
 }
 
 export default function BlogPage() {

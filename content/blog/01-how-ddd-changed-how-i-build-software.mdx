@@ -1,0 +1,74 @@
+---
+title: "How Domain-Driven Design Changed How I Build Software"
+description: "How Domain-Driven Design reshaped the way I model domains, enforce invariants, and design backend systems that evolve safely."
+date: "2025-11-20"
+---
+
+# How Domain-Driven Design Changed How I Build Software
+
+For a long time, I believed that building good software was mostly about frameworks, clean code, and well-defined layers. If the architecture looked correct and the code was testable, everything else would fall into place.
+
+It didn’t.
+
+When I started working with complex domains, mission-critical systems, and constantly evolving requirements, I realized something fundamental: most problems were not technical. They were conceptual.
+
+That is where Domain-Driven Design (DDD) completely changed how I build software.
+
+## Before DDD: technically correct, conceptually fragile systems
+
+Before applying DDD consciously, my systems usually had:
+
+- Clean architecture layers  
+- Well-tested code  
+- Anemic entities  
+- Business rules spread across services  
+- Tight coupling between use cases  
+
+They worked — until the domain changed.
+
+Every new rule introduced unexpected side effects. The system was fragile, even though the code looked “correct”.
+
+The problem was not implementation.  
+It was understanding.
+
+## The domain becomes the center
+
+DDD introduced a fundamental shift:
+
+> The domain is not a detail of the system. The domain *is* the system.
+
+Instead of starting with technical layers, I started with:
+
+- Business language  
+- Invariants  
+- Explicit boundaries  
+
+Code stopped being just an implementation detail and became a direct expression of business rules.
+
+## Ubiquitous language
+
+Business, code, and documentation started speaking the same language.
+
+This drastically reduced ambiguity, misinterpretation, and architecture decisions based on assumptions.
+
+## Aggregates and invariants
+
+Rules started living where they belong.
+
+Invalid states became impossible instead of “unlikely”.
+
+The model itself became defensive.
+
+## Bounded Contexts
+
+DDD taught me that there is no single correct model for an entire system.
+
+There are correct models *within clear boundaries*.
+
+This insight is essential for large and distributed systems.
+
+## Conclusion
+
+DDD changed how I build software because it changed how I think about problems.
+
+Architecture stopped being imposed and became a natural consequence of understanding the domain.

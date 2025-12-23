@@ -21,17 +21,27 @@ export async function generateStaticParams() {
 
 /* ---------- SEO ---------- */
 export async function generateMetadata(
-    { params }: Props
+  { params }: Props
 ): Promise<Metadata> {
-    const { slug } = await params
-    const post = getPostBySlug(slug)
+  const { slug } = await params
+  const post = getPostBySlug(slug)
 
-    if (!post) return {}
+  if (!post) return {}
 
-    return {
-        title: post.title,
-        description: post.description
+  return {
+    title: `${post.title} — Gustavo Lobo`,
+    description: post.description,
+
+    authors: [{ name: "Gustavo Lobo" }],
+
+    openGraph: {
+      title: post.title,
+      description: post.description,
+      type: "article",
+      publishedTime: post.date,
+      authors: ["Gustavo Lobo"]
     }
+  }
 }
 
 /* ---------- PAGE ---------- */

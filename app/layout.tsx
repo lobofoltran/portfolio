@@ -1,14 +1,14 @@
 import type { Metadata } from "next"
-import { Inter } from "next/font/google"
 
 import "./globals.css"
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
+import { inter } from "./fonts"
+import { ThemeProvider } from "next-themes"
+import { Providers } from "./providers"
+import { Suspense } from "react"
+import { AppLoading } from "@/components/app-loading"
 
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter"
-})
 
 export const metadata: Metadata = {
   title: {
@@ -44,13 +44,17 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${inter.variable} min-h-screen bg-background font-sans antialiased`}
+        className={`${inter.className} min-h-screen bg-background font-sans antialiased dark`}
       >
-        <div className="flex min-h-screen flex-col">
-          <Header />
-          <main className="flex-1">{children}</main>
-          <Footer />
-        </div>
+        <Suspense fallback={<AppLoading />}>
+          <Providers>
+            <div className="flex min-h-screen flex-col">
+              <Header />
+              <main className="flex-1">{children}</main>
+              <Footer />
+            </div>
+          </Providers>
+        </Suspense>
       </body>
     </html>
   )

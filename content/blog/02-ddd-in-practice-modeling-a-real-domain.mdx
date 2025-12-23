@@ -1,0 +1,137 @@
+---
+title: "DDD in Practice: Modeling a Real Domain with Code"
+description: "A practical example of applying Domain-Driven Design to model a real domain, enforce invariants, and prevent invalid states through code."
+date: "2025-01-11"
+---
+
+# DDD in Practice: Modeling a Real Domain with Code
+
+Domain-Driven Design only proves its value when the model actively **prevents invalid states** instead of relying on external validations or conventions.
+
+This article shows a practical example of how DDD changes the way domain rules are expressed directly in code.
+
+---
+
+## The domain rules
+
+Consider a simplified **Order** domain with the following rules:
+
+- An order starts in the `CREATED` state  
+- Items can only be added before confirmation  
+- An order cannot be confirmed without items  
+
+These rules look trivial, but they are often implemented incorrectly.
+
+---
+
+## The anemic model (anti-pattern)
+
+A common implementation looks like this:
+
+```java
+public class Order {
+    public UUID id;
+    public String status;
+    public BigDecimal total;
+}
+```
+
+```java
+public class OrderService {
+    public void confirm(Order order) {
+        if (order.total.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalStateException("Order must have items");
+        }
+        order.status = "CONFIRMED";
+    }
+}
+```
+
+### Problems with this approach
+
+- The domain state is public and mutable
+- Business rules live outside the entity
+- Any part of the system can put the object into an invalid state
+
+The model does not protect itself.
+
+---
+
+## Modeling the domain with DDD
+
+With DDD, the goal is to move rules into the domain model.
+
+
+```java
+public class Order {
+
+    private final UUID id;
+    private OrderStatus status = OrderStatus.CREATED;
+    private BigDecimal total = BigDecimal.ZERO;
+
+    public Order(UUID id) {
+        this.id = id;
+    }
+
+    public void addItem(BigDecimal price) {
+        if (status != OrderStatus.CREATED) {
+            throw new IllegalStateException(
+                "Items can only be added before confirmation"
+            );
+        }
+
+        total = total.add(price);
+    }
+
+    public void confirm() {
+        if (total.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalStateException(
+                "Order must contain at least one item"
+            );
+        }
+
+        status = OrderStatus.CONFIRMED;
+    }
+}
+```
+
+---
+
+### What changed?
+
+With this model:
+
+- Invariants are enforced inside the entity
+- Invalid states are impossible by design
+- Services no longer contain business rules
+- The domain becomes expressive and self-defensive
+
+Application services are reduced to orchestration.
+
+---
+
+## Why this matters in real systems
+
+In real systems:
+
+- Multiple developers touch the same codebase
+- Rules evolve over time
+- New use cases appear constantly
+
+A model that does not protect invariants will eventually fail under change.
+
+DDD shifts complexity from services to the model, where it belongs.
+
+----
+
+## Conclusion
+
+Domain-Driven Design is not about abstractions or theoretical purity.
+
+It is about designing models that:
+
+- Express business rules clearly
+- Protect invariants by default
+- Make invalid states impossible
+
+When the domain model is strong, the rest of the system becomes simpler.
