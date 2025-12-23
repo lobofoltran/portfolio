@@ -7,21 +7,22 @@ import { Separator } from "@/components/ui/separator"
 export const metadata: Metadata = {
   title: "Home",
   description:
-    "Software Engineer focused on architecture, distributed systems, and performance."
+    "Software Engineer working on backend, distributed systems, and mission-critical production environments."
 }
 
 export default function HomePage() {
   return (
-    <main className="mx-auto max-w-3xl px-6 py-24">
+    <main className="mx-auto max-w-3xl px-6">
       {/* Intro */}
-      <section className="space-y-6">
+      <section className="space-y-6 pt-20">
         <h1 className="text-4xl font-semibold tracking-tight">
-          Gustavo Foltran
+          Gustavo Lobo
         </h1>
 
         <p className="max-w-xl text-lg text-muted-foreground">
-          Software Engineer focused on architecture, distributed systems,
-          performance, and building reliable systems at scale.
+          Software Engineer focused on backend, distributed systems, and
+          building reliable, scalable systems in real-world production
+          environments.
         </p>
 
         <div className="flex flex-wrap gap-4">
@@ -35,18 +36,15 @@ export default function HomePage() {
         </div>
       </section>
 
-      <Separator className="my-16" />
+      <Separator className="my-8" />
 
       {/* Short bio */}
       <section className="max-w-xl space-y-4 text-sm text-muted-foreground">
         <p>
-          I work with modern web technologies and backend systems, focusing on
-          clean architecture, scalability, and long-term maintainability.
+          I work on backend and distributed systems, focusing on reliability, scalability, and long-term system evolution in production environments.
         </p>
-
         <p>
-          This site serves as my personal portfolio and a place where I share
-          technical insights and lessons learned from real-world systems.
+          This site is a place to document my work and share technical insights from real-world systems.
         </p>
       </section>
     </main>

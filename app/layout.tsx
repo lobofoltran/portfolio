@@ -12,23 +12,23 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: "Gustavo Foltran",
-    template: "%s | Gustavo Foltran"
+    default: "Gustavo Lobo",
+    template: "%s | Gustavo Lobo"
   },
   description:
     "Software Engineer focused on architecture, distributed systems, and performance.",
   openGraph: {
-    title: "Gustavo Foltran",
+    title: "Gustavo Lobo",
     description:
       "Software Engineer focused on architecture, distributed systems, and performance.",
     url: "https://seusite.com",
-    siteName: "Gustavo Foltran",
+    siteName: "Gustavo Lobo",
     images: [
       {
         url: "/og.png",
         width: 1200,
         height: 630,
-        alt: "Gustavo Foltran"
+        alt: "Gustavo Lobo"
       }
     ],
     locale: "en_US",
