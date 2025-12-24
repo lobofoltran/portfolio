@@ -5,6 +5,8 @@ import { Separator } from "@/components/ui/separator"
 import { TracingBeam } from "@/components/ui/tracing-beam"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
+import { Cloud, Code2, Database, Layers, LucideProps, Server } from "lucide-react"
+import { ForwardRefExoticComponent, RefAttributes } from "react"
 
 export const metadata: Metadata = {
   title: "Resume — Gustavo Lobo | Senior Backend & Distributed Systems Engineer",
@@ -189,14 +191,41 @@ export default function ResumePage() {
               {/* Backend & Systems */}
               <Card>
                 <CardContent className="space-y-4 px-6">
-                  <h3 className="text-sm font-semibold">Backend & Systems</h3>
+                  <div className="flex flex-wrap gap-4 items-center">
+                    <div className="px-2 py-2 border rounded border-blue text-blue-600 dark:text-blue-400">
+                      <Server className="size-4" />
+                    </div>
+                    <h3 className="text-sm font-semibold">Backend Development</h3>
+                  </div>
                   <div className="flex flex-wrap gap-2">
                     <Badge variant="blue">Java</Badge>
                     <Badge variant="blue">Spring Boot</Badge>
-                    <Badge variant="blue">REST APIs</Badge>
-                    <Badge variant="blue">Concurrency</Badge>
-                    <Badge variant="blue">Transactional Systems</Badge>
-                    <Badge variant="blue">High-throughput Services</Badge>
+                    <Badge variant="blue">Swagger/OpenAPI</Badge>
+                    <Badge variant="blue">Go</Badge>
+                    <Badge variant="blue">Node.js</Badge>
+                    <Badge variant="blue">Python</Badge>
+                    <Badge variant="blue">PHP</Badge>
+                    <Badge variant="blue">Laravel</Badge>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Frontend */}
+              <Card>
+                <CardContent className="space-y-4 px-6">
+                  <div className="flex flex-wrap gap-4 items-center">
+                    <div className="px-2 py-2 border rounded border-blue text-blue-600 dark:text-blue-400">
+                      <Server className="size-4" />
+                    </div>
+                    <h3 className="text-sm font-semibold">Frontend Development</h3>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="blue">TypeScript</Badge>
+                    <Badge variant="blue">React</Badge>
+                    <Badge variant="blue">Next.js</Badge>
+                    <Badge variant="blue">Flutter</Badge>
+                    <Badge variant="blue">Angular</Badge>
+                    <Badge variant="blue">Vue.js</Badge>
                   </div>
                 </CardContent>
               </Card>
@@ -204,11 +233,16 @@ export default function ResumePage() {
               {/* Distributed & Event-Driven */}
               <Card>
                 <CardContent className="space-y-4 px-6">
-                  <h3 className="text-sm font-semibold">Distributed & Event-Driven</h3>
+                  <div className="flex flex-wrap gap-4 items-center">
+                    <div className="px-2 py-2 border rounded border-blue text-blue-600 dark:text-blue-400">
+                      <Layers className="size-4" />
+                    </div>
+                    <h3 className="text-sm font-semibold">Distributed Systems & Architecture</h3>
+                  </div>
                   <div className="flex flex-wrap gap-2">
                     <Badge variant="blue">Kafka</Badge>
+                    <Badge variant="blue">RabbitMQ</Badge>
                     <Badge variant="blue">Event-driven Architecture</Badge>
-                    <Badge variant="blue">Asynchronous Processing</Badge>
                     <Badge variant="blue">Domain-Driven Design (DDD)</Badge>
                   </div>
                 </CardContent>
@@ -217,44 +251,45 @@ export default function ResumePage() {
               {/* Data & Persistence */}
               <Card>
                 <CardContent className="space-y-4 px-6">
-                  <h3 className="text-sm font-semibold">Data & Persistence</h3>
+                  <div className="flex flex-wrap gap-4 items-center">
+                    <div className="px-2 py-2 border rounded border-blue text-blue-600 dark:text-blue-400">
+                      <Database className="size-4" />
+                    </div>
+                    <h3 className="text-sm font-semibold">Data Engineering & Persistence</h3>
+                  </div>
                   <div className="flex flex-wrap gap-2">
                     <Badge variant="blue">PostgreSQL</Badge>
                     <Badge variant="blue">Partitioning</Badge>
                     <Badge variant="blue">Logical Replication</Badge>
                     <Badge variant="blue">High Availability</Badge>
                     <Badge variant="blue">Patroni</Badge>
+                    <Badge variant="blue">SQL Server</Badge>
+                    <Badge variant="blue">MySQL</Badge>
+                    <Badge variant="blue">MongoDB</Badge>
+                    <Badge variant="blue">Redis</Badge>
                   </div>
                 </CardContent>
               </Card>
 
               {/* Platform & Operations */}
-              <Card>
+              <Card className="sm:col-span-2">
                 <CardContent className="space-y-4 px-6">
-                  <h3 className="text-sm font-semibold">Platform & Operations</h3>
+                  <div className="flex flex-wrap gap-4 items-center">
+                    <div className="px-2 py-2 border rounded border-blue text-blue-600 dark:text-blue-400">
+                      <Cloud className="size-4" />
+                    </div>
+                    <h3 className="text-sm font-semibold">Cloud & Infrastructure</h3>
+                  </div>
                   <div className="flex flex-wrap gap-2">
+                    <Badge variant="blue">AWS</Badge>
+                    <Badge variant="blue">Cloudflare</Badge>
                     <Badge variant="blue">Kubernetes</Badge>
+                    <Badge variant="blue">Terraform</Badge>
                     <Badge variant="blue">Docker</Badge>
                     <Badge variant="blue">CI/CD</Badge>
                     <Badge variant="blue">Automation</Badge>
                     <Badge variant="blue">Observability</Badge>
                     <Badge variant="blue">Linux</Badge>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Frontend & Internal Tools */}
-              <Card className="gap-4 sm:col-span-2">
-                <CardContent className="space-y-4 px-6">
-
-                  <h3 className="text-sm font-semibold">Frontend & Internal Tools</h3>
-                  <div className="flex flex-wrap gap-2">
-                    <Badge variant="blue">React</Badge>
-                    <Badge variant="blue">Next.js</Badge>
-                    <Badge variant="blue">Flutter</Badge>
-                    <Badge variant="blue">Angular</Badge>
-                    <Badge variant="blue">Internal Platforms</Badge>
-                    <Badge variant="blue">Operational Dashboards</Badge>
                   </div>
                 </CardContent>
               </Card>

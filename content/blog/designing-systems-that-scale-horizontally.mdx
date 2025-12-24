@@ -1,0 +1,198 @@
+---
+title: "Designing Systems That Scale Horizontally"
+description: "How to design backend systems that scale horizontally across multiple instances while remaining consistent, observable, and predictable."
+date: "2025-11-23"
+---
+
+Horizontal scalability is often described as *adding more instances*.
+
+In practice, it is about something deeper:
+
+> **Designing systems where adding instances does not change behavior.**
+
+This article focuses on **how to design backend systems that scale horizontally in production**, highlighting the architectural decisions that make or break multi-instance deployments.
+
+---
+
+## The Illusion of Scalability
+
+Many systems appear scalable during development:
+
+- Single instance
+- Local database
+- In-memory state
+- No contention
+
+Then a second instance is deployed.
+
+Suddenly:
+- Bugs appear
+- Data races surface
+- Events are duplicated
+- Caches diverge
+
+The system was never horizontally scalable — it was merely *replicable*.
+
+---
+
+## Statelessness Is the First Requirement
+
+A horizontally scalable service must be **stateless**.
+
+This means:
+- No in-memory session state
+- No local caches that affect correctness
+- No reliance on instance identity
+
+### Bad Example
+
+```java
+private final Map<String, Session> sessions = new HashMap<>();
+```
+
+This works only until traffic is load-balanced.
+
+### Correct Approach
+
+State must live in:
+- Databases
+- Distributed caches
+- External systems
+
+Instances become **interchangeable**.
+
+---
+
+## Idempotency Everywhere
+
+In multi-instance systems:
+- Requests are retried
+- Events are redelivered
+- Consumers rebalance
+
+Idempotency is mandatory.
+
+```java
+if (operationAlreadyProcessed(id)) {
+  return;
+}
+```
+
+Without it:
+- Side effects multiply
+- Data corruption follows
+- Recovery becomes impossible
+
+---
+
+## Concurrency Is the Default State
+
+Horizontal scaling means **concurrent execution** by default.
+
+Design assuming:
+- Multiple writers
+- Multiple consumers
+- Out-of-order execution
+
+### Database-Level Protection
+
+```sql
+UPDATE orders
+SET status = 'PAID'
+WHERE id = :id
+  AND status = 'PENDING';
+```
+
+The database becomes the **arbiter of truth**.
+
+---
+
+## Leader Election and Single-Writer Patterns
+
+Some tasks must run once:
+- Schedulers
+- Batch jobs
+- Maintenance tasks
+
+Solutions:
+- Database locks
+- Advisory locks (PostgreSQL)
+- External coordination (ZooKeeper, etcd)
+
+Example with PostgreSQL advisory locks:
+
+```sql
+SELECT pg_try_advisory_lock(12345);
+```
+
+Only one instance succeeds.
+
+---
+
+## Event-Driven Scaling
+
+Event-driven architectures naturally support horizontal scaling.
+
+- Producers are decoupled
+- Consumers scale independently
+- Load is distributed by partitions
+
+Kafka consumer groups enforce:
+- One consumer per partition
+- Automatic rebalancing
+- Fault tolerance
+
+This model fits multi-instance systems naturally.
+
+---
+
+## Observability in Multi-Instance Systems
+
+Without observability, scaling is blind.
+
+You must track:
+- Instance count
+- Request concurrency
+- Error rates per instance
+- Lag and backpressure
+
+Metrics turn scaling from guesswork into engineering.
+
+---
+
+## Failure Becomes Normal
+
+In horizontally scaled systems:
+- Instances die
+- Deployments restart pods
+- Networks glitch
+
+This must be expected.
+
+Resilient systems:
+- Restart cleanly
+- Recover state externally
+- Resume processing safely
+
+---
+
+## Final Thoughts
+
+Horizontal scalability is not about infrastructure.
+
+It is about **discipline in system design**.
+
+If your system:
+- Is stateless
+- Is idempotent
+- Delegates consistency to durable stores
+- Observes itself clearly
+
+Then adding instances becomes boring.
+
+And boring systems are the ones that scale.
+
+---
+
+**Author:** Gustavo Lobo  
+**Focus:** Backend engineering, distributed systems, scalability

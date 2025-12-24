@@ -1,0 +1,168 @@
+---
+title: "Outbox Pattern with PostgreSQL in Practice"
+description: "A practical guide to implementing the Outbox Pattern with PostgreSQL to guarantee reliable event delivery in distributed systems."
+date: "2025-11-22"
+---
+
+In distributed systems, one of the hardest problems is not scalability or performance.
+
+It is **consistency across boundaries**.
+
+More specifically:
+
+> **How do you guarantee that a database change and a Kafka event represent the same reality?**
+
+This article walks through the **Outbox Pattern implemented with PostgreSQL**, focusing on real production concerns instead of textbook diagrams.
+
+---
+
+## The Core Problem: Dual Writes
+
+A very common integration flow looks like this:
+
+```text
+1. Write to database
+2. Publish event to Kafka
+```
+
+It looks simple — until something fails.
+
+### Failure Scenarios
+
+- The database commit succeeds, but Kafka publish fails  
+- Kafka publish succeeds, but the database transaction rolls back  
+- The application crashes between the two operations  
+- Network partitions cause partial success  
+
+This situation is known as the **dual write problem**.
+
+Without special handling, it leads to:
+- Lost events
+- Ghost events
+- Data divergence between systems
+
+---
+
+## Why Distributed Transactions Are Not the Answer
+
+Two-phase commit and XA transactions appear attractive in theory.
+
+In practice:
+- Kafka does not participate in XA transactions
+- Availability is reduced
+- Operational complexity increases significantly
+- Failure recovery becomes harder, not easier
+
+Modern systems avoid distributed transactions.
+
+They favor **local atomicity and eventual consistency**.
+
+---
+
+## The Outbox Pattern Explained
+
+The Outbox Pattern replaces dual writes with a single atomic operation.
+
+> **Persist business data and integration events in the same database transaction.**
+
+Kafka becomes asynchronous, not transactional.
+
+---
+
+## PostgreSQL as the Source of Truth
+
+PostgreSQL is an excellent fit for the Outbox Pattern because it provides:
+- Strong ACID guarantees
+- Native JSONB support
+- Efficient partial indexes
+- Logical replication capabilities
+- Mature operational tooling
+
+---
+
+## Designing the Outbox Table
+
+A production-ready schema:
+
+```sql
+CREATE TABLE outbox_events (
+  id UUID PRIMARY KEY,
+  aggregate_type TEXT NOT NULL,
+  aggregate_id TEXT NOT NULL,
+  event_type TEXT NOT NULL,
+  payload JSONB NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT now(),
+  published_at TIMESTAMP NULL
+);
+
+CREATE INDEX idx_outbox_unpublished
+  ON outbox_events (published_at)
+  WHERE published_at IS NULL;
+```
+
+---
+
+## Writing Data and Events Atomically
+
+```java
+@Transactional
+public void createOrder(CreateOrderCommand command) {
+  Order order = orderRepository.save(
+    Order.from(command)
+  );
+
+  OutboxEvent event = OutboxEvent.builder()
+    .id(UUID.randomUUID())
+    .aggregateType("Order")
+    .aggregateId(order.getId().toString())
+    .eventType("OrderCreated")
+    .payload(toJson(order))
+    .build();
+
+  outboxRepository.save(event);
+}
+```
+
+---
+
+## Asynchronous Event Publishing
+
+```java
+List<OutboxEvent> events =
+  outboxRepository.findUnpublished(limit);
+
+for (OutboxEvent event : events) {
+  try {
+    kafkaProducer.send(event.toKafkaRecord());
+    outboxRepository.markAsPublished(event.id());
+  } catch (Exception e) {
+    // retry later
+  }
+}
+```
+
+---
+
+## Idempotency Is Mandatory
+
+```java
+if (processedEventRepository.exists(eventId)) {
+  return;
+}
+
+process(event);
+processedEventRepository.save(eventId);
+```
+
+---
+
+## Final Thoughts
+
+The Outbox Pattern is not about Kafka.
+
+It is about **respecting transactional boundaries**.
+
+When combined with PostgreSQL:
+- Data loss is eliminated
+- Failures are isolated
+- Systems become predictable under stress

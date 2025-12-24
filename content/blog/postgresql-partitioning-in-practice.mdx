@@ -1,0 +1,200 @@
+---
+title: "PostgreSQL Partitioning in Practice: When It Actually Pays Off"
+description: "A practical guide to PostgreSQL table partitioning, explaining when it improves performance and when it only adds complexity."
+date: "2025-11-24"
+---
+
+PostgreSQL partitioning is often presented as a silver bullet for scalability.
+
+In reality, it is a **trade-off**.
+
+> **Partitioning solves very specific problems — and creates new ones if applied blindly.**
+
+This article focuses on **when PostgreSQL partitioning is worth the complexity**, based on real production scenarios.
+
+---
+
+## What Partitioning Really Is
+
+Partitioning splits a logical table into multiple physical tables, based on a key such as:
+- Time
+- Identifier range
+- Tenant
+- Geographic region
+
+From the application’s perspective, it still looks like one table.
+
+From the database’s perspective, it changes everything.
+
+---
+
+## The Problems Partitioning Actually Solves
+
+Partitioning is useful when **at least one** of these conditions is true.
+
+### 1. Very Large Tables
+
+Tables with:
+- Tens or hundreds of millions of rows
+- Continuous growth
+- Heavy write and read traffic
+
+At this scale:
+- Index sizes grow
+- Vacuum becomes expensive
+- Queries degrade
+
+Partitioning limits the working set.
+
+---
+
+### 2. Time-Based Data Access
+
+If most queries filter by time:
+
+```sql
+SELECT *
+FROM events
+WHERE created_at >= now() - interval '7 days';
+```
+
+Range partitioning by time allows:
+- Partition pruning
+- Faster scans
+- Easier data retention
+
+---
+
+### 3. Data Retention and Archival
+
+Dropping data becomes cheap:
+
+```sql
+DROP TABLE events_2023_01;
+```
+
+This is faster and safer than deleting millions of rows.
+
+---
+
+## When Partitioning Does NOT Help
+
+Partitioning adds overhead. It is harmful when:
+
+- Tables are small
+- Access patterns are random
+- Queries do not include the partition key
+- Index maintenance cost outweighs benefits
+
+Partitioning does not fix:
+- Bad indexes
+- Poor queries
+- Missing filters
+
+---
+
+## Partitioning Strategies
+
+### Range Partitioning (Most Common)
+
+```sql
+CREATE TABLE events (
+  id BIGSERIAL,
+  created_at TIMESTAMP NOT NULL,
+  payload JSONB
+) PARTITION BY RANGE (created_at);
+```
+
+```sql
+CREATE TABLE events_2025_01
+  PARTITION OF events
+  FOR VALUES FROM ('2025-01-01') TO ('2025-02-01');
+```
+
+Ideal for logs, events, transactions.
+
+---
+
+### Hash Partitioning
+
+```sql
+PARTITION BY HASH (tenant_id);
+```
+
+Useful when:
+- Load must be evenly distributed
+- Queries always include the partition key
+
+Less flexible for retention.
+
+---
+
+## Indexing Partitioned Tables
+
+Indexes are **per partition**, not global.
+
+That means:
+- More indexes to manage
+- More disk usage
+- Longer planning time if poorly designed
+
+Design indexes carefully and keep them minimal.
+
+---
+
+## Operational Considerations
+
+Partitioning impacts operations:
+
+- Backups may take longer
+- Schema changes must be applied to all partitions
+- Monitoring becomes more complex
+
+Automate partition creation and cleanup.
+
+---
+
+## Partition Pruning Is Everything
+
+Partitioning only works if PostgreSQL can prune partitions.
+
+This requires:
+- Explicit filters on the partition key
+- Avoiding functions that block pruning
+- Proper data types
+
+Without pruning, performance degrades.
+
+---
+
+## Partitioning vs Sharding
+
+Partitioning:
+- Single database
+- Strong consistency
+- Simpler operations
+
+Sharding:
+- Multiple databases
+- Higher complexity
+- Horizontal database scaling
+
+Partitioning is often a **step before sharding**, not a replacement.
+
+---
+
+## Final Thoughts
+
+PostgreSQL partitioning is a powerful tool.
+
+Used correctly:
+- It improves performance
+- Simplifies data lifecycle management
+- Keeps large tables manageable
+
+Used prematurely:
+- It complicates everything
+- Provides little benefit
+- Increases operational risk
+
+Partitioning should be a **measured response to real pressure**, not a default design choice.
