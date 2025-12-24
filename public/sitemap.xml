@@ -1,20 +1,37 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset
-  xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
->
-  <url>
-    <loc>https://lobofoltran.dev/</loc>
-  </url>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 
+  <url>
+    <loc>https://lobofoltran.dev</loc>
+  </url>
   <url>
     <loc>https://lobofoltran.dev/blog</loc>
   </url>
-
   <url>
     <loc>https://lobofoltran.dev/resume</loc>
   </url>
-
   <url>
-    <loc>https://lobofoltran.dev/blog/how-domain-driven-design-changed-how-i-build-software</loc>
+    <loc>https://lobofoltran.dev/blog/centralized-observability-with-prometheus-loki-promtail</loc>
+  </url>
+  <url>
+    <loc>https://lobofoltran.dev/blog/ddd-in-practice-modeling-a-real-domain</loc>
+  </url>
+  <url>
+    <loc>https://lobofoltran.dev/blog/designing-resilient-kafka-integrations</loc>
+  </url>
+  <url>
+    <loc>https://lobofoltran.dev/blog/designing-systems-that-scale-horizontally</loc>
+  </url>
+  <url>
+    <loc>https://lobofoltran.dev/blog/how-ddd-changed-how-i-build-software</loc>
+  </url>
+  <url>
+    <loc>https://lobofoltran.dev/blog/observability-with-prometheus-and-micrometer</loc>
+  </url>
+  <url>
+    <loc>https://lobofoltran.dev/blog/outbox-pattern-with-postgresql-in-practice</loc>
+  </url>
+  <url>
+    <loc>https://lobofoltran.dev/blog/postgresql-partitioning-in-practice</loc>
   </url>
 </urlset>
