@@ -1,14 +1,23 @@
 import type { Metadata } from "next"
-
 import "./globals.css"
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
-import { inter } from "./fonts"
-import { ThemeProvider } from "next-themes"
 import { Providers } from "./providers"
 import { Suspense } from "react"
 import { AppLoading } from "@/components/app-loading"
+import { Geist, Geist_Mono, Figtree } from "next/font/google";
 
+const figtree = Figtree({subsets:['latin'],variable:'--font-sans'});
+
+const geistSans = Geist({
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
+});
+
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
 
 export const metadata: Metadata = {
   title: {
@@ -42,9 +51,9 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className={figtree.variable}>
       <body
-        className={`${inter.className} min-h-screen bg-background font-sans antialiased dark`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen bg-background font-sans antialiased`}
       >
         <Suspense fallback={<AppLoading />}>
           <Providers>

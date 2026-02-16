@@ -20,14 +20,12 @@ export default function HomePage() {
         {/* Text */}
         <div className="space-y-6">
           <h1 className="text-4xl font-semibold tracking-tight">
-            Gustavo <span className="text-primary">Lobo</span>
+            Gustavo Lobo
           </h1>
 
           <div className="max-w-xl text-lg text-muted-foreground">
-            <TextGenerateEffect
-              words="Software Engineer focused on backend and distributed systems, building
-            reliable and scalable mission-critical systems."
-            />
+              Software Engineer focused on backend and distributed systems, building
+              reliable and scalable mission-critical systems.
           </div>
 
           <div className="flex items-center gap-4">
@@ -45,7 +43,7 @@ export default function HomePage() {
                 hover:ring-4
                 hover:ring-blue-500/30
                 "
-              >
+            >
               <Link href="/resume">View Resume</Link>
             </Button>
 
@@ -60,7 +58,7 @@ export default function HomePage() {
                 ease-in-out
                 hover:border-primary
               "
-              >
+            >
               <Link href="/blog">Read Blog</Link>
             </Button>
           </div>
@@ -70,11 +68,9 @@ export default function HomePage() {
         <div className="flex justify-center md:justify-end">
           <div
             className="
-      relative h-64 w-64 overflow-hidden rounded-2xl
+      relative h-64 w-64 overflow-hidden rounded-md
       ring-2 ring-blue-500/60
       shadow-sm
-      transition-all duration-700 ease-out
-      hover:scale-105 hover:ring-blue-500 hover:shadow-md
     "
           >
             <Image
@@ -83,10 +79,7 @@ export default function HomePage() {
               fill
               priority
               className="
-        object-cover
-        transition-transform duration-700 ease-out
-        hover:scale-110
-      "
+        object-cover      "
             />
           </div>
         </div>

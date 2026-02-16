@@ -2,11 +2,9 @@ import Image from "next/image"
 import { Metadata } from "next"
 
 import { Separator } from "@/components/ui/separator"
-import { TracingBeam } from "@/components/ui/tracing-beam"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
-import { Cloud, Code2, Database, Layers, LucideProps, Server } from "lucide-react"
-import { ForwardRefExoticComponent, RefAttributes } from "react"
+import { Cloud, Database, Layers, Server } from "lucide-react"
 
 export const metadata: Metadata = {
   title: "Resume — Gustavo Lobo | Senior Backend & Distributed Systems Engineer",
@@ -17,7 +15,7 @@ export const metadata: Metadata = {
 export default function ResumePage() {
   return (
     <main className="mx-auto max-w-3xl py-10 text-sm leading-relaxed antialiased relative">
-      <TracingBeam className="px-6">
+      <div className="px-6">
         <div className="pl-6">
           {/* Header */}
           <header className="flex items-center gap-4">
@@ -43,9 +41,9 @@ export default function ResumePage() {
 
           <Separator className="my-8" />
 
-          {/* Summary */}
+          {/* Profile */}
           <section className="space-y-3">
-            <h2 className="text-lg font-semibold">Summary</h2>
+            <h2 className="text-lg font-semibold">Profile</h2>
             <p className="text-muted-foreground">
               Software Engineer with hands-on experience designing, operating,
               and evolving mission-critical and highly transactional systems in
@@ -183,9 +181,9 @@ export default function ResumePage() {
 
           <Separator className="my-8" />
 
-          {/* Skills */}
+          {/* Stack */}
           <section className="space-y-6">
-            <h2 className="text-lg font-semibold">Skills</h2>
+            <h2 className="text-lg font-semibold">Stack</h2>
 
             <div className="grid gap-4 sm:grid-cols-2">
               {/* Backend & Systems */}
@@ -371,7 +369,7 @@ export default function ResumePage() {
             </p>
           </section>
         </div>
-      </TracingBeam>
+      </div>
     </main>
   )
 }
