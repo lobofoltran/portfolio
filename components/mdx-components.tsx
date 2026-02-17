@@ -1,52 +1,66 @@
 import type { MDXComponents } from "mdx/types"
+import type { ComponentProps } from "react"
 import Link from "next/link"
 
-import { cn } from "@/lib/utils"
+import { CodeBlock } from "@/components/blog/code-block"
+import { ZoomImage } from "@/components/blog/zoom-image"
 import { Separator } from "@/components/ui/separator"
+import { cn } from "@/lib/utils"
+
+function unwrapIfOnlyImage(children: ComponentProps<"p">["children"]) {
+  const arr = Array.isArray(children) ? children : [children]
+
+  // Remove whitespace-only text nodes (MDX frequently adds "\n")
+  const filtered = arr.filter((child) => {
+    if (typeof child === "string") return child.trim().length > 0
+    return child != null
+  })
+
+  if (filtered.length !== 1) return null
+
+  const child: any = filtered[0]
+
+  // Markdown img (before mapping)
+  if (child?.type === "img") return child
+
+  // After mapping: img -> ZoomImage, so inside <p> you may see <ZoomImage .../>
+  if (child?.type === ZoomImage) return child
+
+  // MDX runtime fallback
+  if (child?.props?.mdxType === "img") return child
+
+  return null
+}
 
 export const mdxComponents: MDXComponents = {
-  h1: ({ className, ...props }) => (
-    <h1
-      className={cn(
-        "mt-8 scroll-m-20 text-3xl font-semibold tracking-tight",
-        className
-      )}
-      {...props}
-    />
+  h1: ({ className, ...props }: ComponentProps<"h1">) => (
+    <h1 className={cn("mt-8 scroll-m-20 text-3xl font-semibold tracking-tight", className)} {...props} />
   ),
 
-  h2: ({ className, ...props }) => (
+  h2: ({ className, ...props }: ComponentProps<"h2">) => (
     <h2
-      className={cn(
-        "mt-10 scroll-m-20 border-b pb-2 text-2xl font-semibold tracking-tight",
-        className
-      )}
+      className={cn("mt-10 scroll-m-20 border-b pb-2 text-2xl font-semibold tracking-tight", className)}
       {...props}
     />
   ),
 
-  h3: ({ className, ...props }) => (
-    <h3
-      className={cn(
-        "mt-8 scroll-m-20 text-xl font-semibold tracking-tight",
-        className
-      )}
-      {...props}
-    />
+  h3: ({ className, ...props }: ComponentProps<"h3">) => (
+    <h3 className={cn("mt-8 scroll-m-20 text-xl font-semibold tracking-tight", className)} {...props} />
   ),
 
-  p: ({ className, ...props }) => (
-    <p
-      className={cn(
-        "leading-7 [&:not(:first-child)]:mt-6",
-        className
-      )}
-      {...props}
-    />
-  ),
+  p: ({ children, className, ...props }: ComponentProps<"p">) => {
+    const unwrapped = unwrapIfOnlyImage(children)
+    if (unwrapped) return <>{unwrapped}</>
 
-  a: ({ className, href = "", ...props }) => {
-    const isExternal = href.startsWith("http")
+    return (
+      <p className={cn("leading-7 [&:not(:first-child)]:mt-6", className)} {...props}>
+        {children}
+      </p>
+    )
+  },
+
+  a: ({ className, href = "", ...props }: ComponentProps<"a">) => {
+    const isExternal = typeof href === "string" && href.startsWith("http")
 
     if (isExternal) {
       return (
@@ -54,77 +68,34 @@ export const mdxComponents: MDXComponents = {
           href={href}
           target="_blank"
           rel="noreferrer"
-          className={cn(
-            "font-medium underline underline-offset-4",
-            className
-          )}
+          className={cn("font-medium underline underline-offset-4", className)}
           {...props}
         />
       )
     }
 
     return (
-      <Link
-        href={href}
-        className={cn(
-          "font-medium underline underline-offset-4",
-          className
-        )}
-        {...props}
-      />
+      <Link href={href} className={cn("font-medium underline underline-offset-4", className)} {...props} />
     )
   },
 
-  ul: ({ className, ...props }) => (
-    <ul
-      className={cn("my-6 ml-6 list-disc", className)}
-      {...props}
-    />
+  img: ({ src = "", alt = "", title }: ComponentProps<"img">) => (
+    <ZoomImage src={src as any} alt={alt ?? ""} caption={title} wide />
   ),
 
-  ol: ({ className, ...props }) => (
-    <ol
-      className={cn("my-6 ml-6 list-decimal", className)}
-      {...props}
-    />
-  ),
+  ZoomImage,
 
-  li: ({ className, ...props }) => (
-    <li
-      className={cn("mt-2", className)}
-      {...props}
-    />
-  ),
+  ul: ({ className, ...props }: ComponentProps<"ul">) => <ul className={cn("my-6 ml-6 list-disc", className)} {...props} />,
 
-  blockquote: ({ className, ...props }) => (
-    <blockquote
-      className={cn(
-        "mt-6 border-l-2 pl-6 italic text-muted-foreground",
-        className
-      )}
-      {...props}
-    />
+  ol: ({ className, ...props }: ComponentProps<"ol">) => <ol className={cn("my-6 ml-6 list-decimal", className)} {...props} />,
+
+  li: ({ className, ...props }: ComponentProps<"li">) => <li className={cn("mt-2", className)} {...props} />,
+
+  blockquote: ({ className, ...props }: ComponentProps<"blockquote">) => (
+    <blockquote className={cn("mt-6 border-l-2 pl-6 italic text-muted-foreground", className)} {...props} />
   ),
 
   hr: () => <Separator className="my-12" />,
 
-  code: ({ className, ...props }) => (
-    <code
-      className={cn(
-        "relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm",
-        className
-      )}
-      {...props}
-    />
-  ),
-
-  pre: ({ className, ...props }) => (
-    <pre
-      className={cn(
-        "mb-6 mt-6 overflow-x-auto rounded-lg bg-muted p-4 text-sm",
-        className
-      )}
-      {...props}
-    />
-  )
+  pre: ({ className, ...props }: ComponentProps<"pre">) => <CodeBlock className={className} {...props} />,
 }

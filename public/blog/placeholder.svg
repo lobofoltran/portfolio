@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="675" viewBox="0 0 1200 675" fill="none">
+  <rect width="1200" height="675" fill="#111827"/>
+  <rect x="80" y="80" width="1040" height="515" rx="4" stroke="#374151" stroke-width="2"/>
+  <path d="M140 172H1060" stroke="#4B5563" stroke-width="2"/>
+  <path d="M140 244H840" stroke="#374151" stroke-width="2"/>
+  <path d="M140 316H980" stroke="#374151" stroke-width="2"/>
+  <path d="M140 388H760" stroke="#374151" stroke-width="2"/>
+  <text x="140" y="145" fill="#9CA3AF" font-size="30" font-family="monospace">blog.cover</text>
+</svg>

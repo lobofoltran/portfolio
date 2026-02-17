@@ -1,0 +1,252 @@
+---
+title: "Zero-Cost AI Gateway on the Edge"
+excerpt: "A production-style AI Gateway on Cloudflare Workers, Gemini free tier, and R2 with strict auth, observability, and zero direct infrastructure cost."
+description: "Designing a zero-cost AI Gateway on Cloudflare edge using Auth Worker, LLM Proxy, Gemini free tier, and R2 logs."
+date: "2026-02-16"
+categories: ["Distributed Systems", "Cloudflare", "AI Infrastructure"]
+tags: ["Cloudflare", "Edge Computing", "LLM", "AI Infrastructure", "Distributed Systems"]
+cover: "/blog/ai-gateway-architecture.png"
+---
+
+This post describes a production-style AI Gateway that runs completely on free-tier infrastructure:
+
+- Cloudflare Workers for edge control plane
+- Gemini free API tier for inference
+- R2 for request/response and metrics persistence
+- Stateless client auth sync using Zustand + JSON payloads
+
+The goal is not "toy demo" architecture. The goal is a constrained but real gateway with guardrails, traceability, and predictable behavior under free limits.
+
+## 1. Context & problem
+
+Direct client-to-LLM integration creates three common problems:
+
+1. Secret exposure risk (`API key` on client)
+2. No centralized policy enforcement (model allowlist, quotas, abuse limits)
+3. No durable audit trail for prompts and responses
+
+At small scale you can ignore this. In production you cannot.
+
+## 2. Architecture overview
+
+![Zero-Cost AI Gateway Architecture](/blog/ai-gateway-architecture.png)
+
+Flow:
+
+`Client -> Auth Worker -> LLM Proxy -> Gemini -> R2`
+
+Responsibilities are intentionally split:
+
+- `Auth Worker`: identity + token validation + authorization context
+- `LLM Proxy Worker`: model mediation + payload normalization + response shaping
+- `R2`: immutable prompt/response logs and lightweight metrics
+
+## 3. Auth Worker design
+
+Auth Worker validates signed tokens and emits a compact security context for the proxy.
+
+```ts
+export async function validateRequest(request: Request, env: Env) {
+  const auth = request.headers.get("authorization")
+  if (!auth?.startsWith("Bearer ")) {
+    return new Response("Unauthorized", { status: 401 })
+  }
+
+  const token = auth.slice(7)
+  const payload = await verifyJwt(token, env.AUTH_JWKS_URL)
+
+  if (!payload || payload.exp * 1000 < Date.now()) {
+    return new Response("Invalid token", { status: 401 })
+  }
+
+  if (!payload.scopes?.includes("llm:invoke")) {
+    return new Response("Forbidden", { status: 403 })
+  }
+
+  return {
+    subject: payload.sub,
+    tenantId: payload.tenant_id,
+    plan: payload.plan ?? "free",
+  }
+}
+```
+
+Key decisions:
+
+- JWT validation on edge to avoid origin round-trip
+- Scope-based access (`llm:invoke`)
+- Tenant identity forwarded as structured context, not raw token
+
+## 4. LLM Proxy Worker
+
+Proxy receives validated context, enforces model policy, forwards to Gemini, and normalizes output.
+
+```ts
+export async function proxyToGemini(input: GatewayInput, env: Env) {
+  const allowedModels = new Set(["gemini-2.0-flash", "gemini-2.0-flash-lite"])
+
+  if (!allowedModels.has(input.model)) {
+    return new Response("Model not allowed", { status: 400 })
+  }
+
+  const geminiResponse = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${input.model}:generateContent?key=${env.GEMINI_API_KEY}`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ role: "user", parts: [{ text: input.prompt }] }],
+      }),
+    }
+  )
+
+  if (!geminiResponse.ok) {
+    return new Response("Upstream LLM error", { status: 502 })
+  }
+
+  const payload = await geminiResponse.json<GeminiResponse>()
+  const text = payload.candidates?.[0]?.content?.parts?.[0]?.text ?? ""
+
+  return Response.json({ text, model: input.model })
+}
+```
+
+Important proxy constraints:
+
+- No model passthrough from client without allowlist
+- Standardized response schema for client stability
+- Upstream failure mapped to gateway semantics (`502`, `429`, `503`)
+
+## 5. R2 storage strategy
+
+R2 bucket structure:
+
+```text
+llm-logs/
+  ├── prompts/
+  ├── responses/
+  └── metrics/
+```
+
+Prompt/response are stored independently to keep write paths simple and queryable.
+
+```ts
+export async function persistR2Log(ctx: GatewayContext, data: GatewayLog, env: Env) {
+  const ts = Date.now()
+  const base = `${ctx.tenantId}/${ctx.subject}/${ts}`
+
+  await Promise.all([
+    env.LLM_LOGS.put(`llm-logs/prompts/${base}.json`, JSON.stringify(data.prompt), {
+      httpMetadata: { contentType: "application/json" },
+    }),
+    env.LLM_LOGS.put(`llm-logs/responses/${base}.json`, JSON.stringify(data.response), {
+      httpMetadata: { contentType: "application/json" },
+    }),
+    env.LLM_LOGS.put(`llm-logs/metrics/${base}.json`, JSON.stringify(data.metrics), {
+      httpMetadata: { contentType: "application/json" },
+    }),
+  ])
+}
+```
+
+## 6. Client state sync (Zustand + JSON)
+
+Client keeps auth context in a minimal Zustand store and transmits only structured JSON.
+
+```ts
+import { create } from "zustand"
+
+type SessionState = {
+  token: string | null
+  tenantId: string | null
+  model: "gemini-2.0-flash" | "gemini-2.0-flash-lite"
+  setSession: (input: { token: string; tenantId: string }) => void
+  clear: () => void
+}
+
+export const useSessionStore = create<SessionState>((set) => ({
+  token: null,
+  tenantId: null,
+  model: "gemini-2.0-flash",
+  setSession: ({ token, tenantId }) => set({ token, tenantId }),
+  clear: () => set({ token: null, tenantId: null }),
+}))
+```
+
+This keeps client state deterministic and proxy contract explicit.
+
+## 7. Request lifecycle
+
+![Request Lifecycle on Edge](/blog/ai-gateway-lifecycle.png)
+
+Lifecycle stages:
+
+1. Client submits prompt + model
+2. Auth Worker validates JWT and scopes
+3. Proxy enforces model/tenant policy
+4. Gemini returns generated content
+5. Proxy logs prompt/response/metrics to R2
+6. Client receives normalized response
+
+## 8. Cost model (all free tier)
+
+![Free-Tier Cost Model](/blog/ai-gateway-costs.png)
+
+This gateway is designed around quota boundaries, not paid capacity.
+
+- Workers: free invocation/runtime quotas
+- Gemini: free model quota limits
+- R2: low-volume object writes + storage within free bucket limits
+
+The system is "zero-cost" only while respecting traffic and token ceilings.
+
+## 9. Security model
+
+Security controls applied:
+
+- No LLM API key on client
+- JWT verification at edge
+- Scope + tenant checks before inference
+- Model allowlist
+- Request logging for traceability
+- Structured errors to avoid leaking internals
+
+Recommended additions for hardening:
+
+- Per-tenant rate limiting keys
+- Prompt content filtering layer
+- Signed request IDs for chain correlation
+
+## 10. Trade-offs
+
+What this design optimizes:
+
+- Fast control-plane logic at edge
+- Low operational overhead
+- Clean separation of concerns
+
+What it sacrifices:
+
+- Strict free-tier throughput ceiling
+- Limited analytical depth without external OLAP pipeline
+- More complex retry semantics if upstream is flaky
+
+## 11. Extensions
+
+Natural next steps:
+
+- Add KV/D1 index for searchable request metadata
+- Async queue for non-blocking write pipelines
+- Multi-provider routing (Gemini + fallback provider)
+- Per-tenant policy DSL for model/tool permissions
+
+## 12. Production learnings
+
+Main engineering lessons from this pattern:
+
+1. Edge auth dramatically reduces unsafe client patterns
+2. Free-tier systems need explicit backpressure and quota awareness
+3. Logging prompts/responses separately simplifies incident analysis
+4. A stable proxy contract is more valuable than raw provider features
+
+For backend teams, this architecture is a practical baseline for shipping AI features with minimal cost and controlled risk.
