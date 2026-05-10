@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Gustavo Lobo — Blog</title>
+    <link>https://lobofoltran.dev/blog</link>
+    <atom:link href="https://lobofoltran.dev/rss.xml" rel="self" type="application/rss+xml" />
+    <description>Software Engineer focused on architecture, distributed systems, and performance.</description>
+    <language>en-us</language>
+    <lastBuildDate>Mon, 16 Feb 2026 00:00:00 GMT</lastBuildDate>
+    <generator>Custom static export</generator>
+    <item>
+      <title>Zero-Cost AI Gateway on the Edge</title>
+      <link>https://lobofoltran.dev/blog/zero-cost-ai-gateway-cloudflare-gemini</link>
+      <guid isPermaLink="true">https://lobofoltran.dev/blog/zero-cost-ai-gateway-cloudflare-gemini</guid>
+      <pubDate>Mon, 16 Feb 2026 00:00:00 GMT</pubDate>
+      <description>A production-style AI Gateway on Cloudflare Workers, Gemini free tier, and R2 — strict edge auth, native rate limiting, durable audit trail, and zero direct infrastructure cost.</description>
+      <author>noreply@lobofoltran.dev (Gustavo Lobo)</author>
+      <category>Distributed Systems</category>
+      <category>Cloudflare</category>
+      <category>AI Infrastructure</category>
+      <enclosure url="https://lobofoltran.dev/blog/zero-cost-ai-gateway-cloudflare-gemini.png" type="image/png" length="0" />
+    </item>
+    <item>
+      <title>Centralized Observability with Prometheus, Loki, and Promtail</title>
+      <link>https://lobofoltran.dev/blog/centralized-observability-with-prometheus-loki-promtail</link>
+      <guid isPermaLink="true">https://lobofoltran.dev/blog/centralized-observability-with-prometheus-loki-promtail</guid>
+      <pubDate>Wed, 26 Nov 2025 00:00:00 GMT</pubDate>
+      <description>How to design a centralized observability stack with Prometheus, Loki, and Promtail — and the cardinality, retention, and failure-mode trade-offs that decide whether it scales.</description>
+      <author>noreply@lobofoltran.dev (Gustavo Lobo)</author>
+      <category>Observability</category>
+      <category>Distributed Systems</category>
+      <enclosure url="https://lobofoltran.dev/blog/centralized-observability-with-prometheus-loki-promtail.png" type="image/png" length="0" />
+    </item>
+    <item>
+      <title>Observability with Prometheus and Micrometer</title>
+      <link>https://lobofoltran.dev/blog/observability-with-prometheus-and-micrometer</link>
+      <guid isPermaLink="true">https://lobofoltran.dev/blog/observability-with-prometheus-and-micrometer</guid>
+      <pubDate>Tue, 25 Nov 2025 00:00:00 GMT</pubDate>
+      <description>How to instrument JVM services with Micrometer and Prometheus — counters, timers, histograms with proper quantiles, and the cardinality discipline that decides whether the stack stays healthy.</description>
+      <author>noreply@lobofoltran.dev (Gustavo Lobo)</author>
+      <category>Observability</category>
+      <enclosure url="https://lobofoltran.dev/blog/observability-with-prometheus-and-micrometer.png" type="image/png" length="0" />
+    </item>
+    <item>
+      <title>PostgreSQL Partitioning in Practice: When It Actually Pays Off</title>
+      <link>https://lobofoltran.dev/blog/postgresql-partitioning-in-practice</link>
+      <guid isPermaLink="true">https://lobofoltran.dev/blog/postgresql-partitioning-in-practice</guid>
+      <pubDate>Mon, 24 Nov 2025 00:00:00 GMT</pubDate>
+      <description>PostgreSQL declarative partitioning explained for production: range vs list vs hash, partition pruning vs constraint exclusion, indexing rules, and the queries that silently bypass pruning.</description>
+      <author>noreply@lobofoltran.dev (Gustavo Lobo)</author>
+      <category>Databases</category>
+      <category>Scalability</category>
+      <enclosure url="https://lobofoltran.dev/blog/postgresql-partitioning-in-practice.png" type="image/png" length="0" />
+    </item>
+    <item>
+      <title>Designing Systems That Scale Horizontally</title>
+      <link>https://lobofoltran.dev/blog/designing-systems-that-scale-horizontally</link>
+      <guid isPermaLink="true">https://lobofoltran.dev/blog/designing-systems-that-scale-horizontally</guid>
+      <pubDate>Sun, 23 Nov 2025 00:00:00 GMT</pubDate>
+      <description>Horizontal scalability is not about adding instances — it is about designing so adding instances does not change behavior. Statelessness, idempotency, single-writer patterns, and observability are the actual contract.</description>
+      <author>noreply@lobofoltran.dev (Gustavo Lobo)</author>
+      <category>Scalability</category>
+      <category>Distributed Systems</category>
+      <enclosure url="https://lobofoltran.dev/blog/designing-systems-that-scale-horizontally.png" type="image/png" length="0" />
+    </item>
+    <item>
+      <title>Outbox Pattern with PostgreSQL in Practice</title>
+      <link>https://lobofoltran.dev/blog/outbox-pattern-with-postgresql-in-practice</link>
+      <guid isPermaLink="true">https://lobofoltran.dev/blog/outbox-pattern-with-postgresql-in-practice</guid>
+      <pubDate>Sat, 22 Nov 2025 00:00:00 GMT</pubDate>
+      <description>A production-grade implementation of the Outbox Pattern on PostgreSQL — schema, atomic write, polling vs LISTEN/NOTIFY, idempotent consumers, and the failure modes that make or break it.</description>
+      <author>noreply@lobofoltran.dev (Gustavo Lobo)</author>
+      <category>Distributed Systems</category>
+      <category>Event-Driven Architecture</category>
+      <category>Databases</category>
+      <enclosure url="https://lobofoltran.dev/blog/outbox-pattern-with-postgresql-in-practice.png" type="image/png" length="0" />
+    </item>
+    <item>
+      <title>Designing Resilient Kafka Integrations</title>
+      <link>https://lobofoltran.dev/blog/designing-resilient-kafka-integrations</link>
+      <guid isPermaLink="true">https://lobofoltran.dev/blog/designing-resilient-kafka-integrations</guid>
+      <pubDate>Fri, 21 Nov 2025 00:00:00 GMT</pubDate>
+      <description>How to design Kafka integrations that survive broker outages, partial failures, and consumer rebalances — with concrete producer configs, the outbox pattern, and idempotent consumers.</description>
+      <author>noreply@lobofoltran.dev (Gustavo Lobo)</author>
+      <category>Distributed Systems</category>
+      <category>Event-Driven Architecture</category>
+      <enclosure url="https://lobofoltran.dev/blog/designing-resilient-kafka-integrations.png" type="image/png" length="0" />
+    </item>
+    <item>
+      <title>DDD in Practice: Modeling a Real Domain with Code</title>
+      <link>https://lobofoltran.dev/blog/ddd-in-practice-modeling-a-real-domain</link>
+      <guid isPermaLink="true">https://lobofoltran.dev/blog/ddd-in-practice-modeling-a-real-domain</guid>
+      <pubDate>Thu, 20 Nov 2025 00:00:00 GMT</pubDate>
+      <description>A practical walk-through of applying Domain-Driven Design — Aggregates, Value Objects, and Repositories — to make invalid states impossible by construction.</description>
+      <author>noreply@lobofoltran.dev (Gustavo Lobo)</author>
+      <category>Domain-Driven Design</category>
+      <enclosure url="https://lobofoltran.dev/blog/ddd-in-practice-modeling-a-real-domain.png" type="image/png" length="0" />
+    </item>
+    <item>
+      <title>How Domain-Driven Design Changed How I Build Software</title>
+      <link>https://lobofoltran.dev/blog/how-ddd-changed-how-i-build-software</link>
+      <guid isPermaLink="true">https://lobofoltran.dev/blog/how-ddd-changed-how-i-build-software</guid>
+      <pubDate>Wed, 19 Nov 2025 00:00:00 GMT</pubDate>
+      <description>A personal account of why frameworks, clean layers, and tests stopped being enough — and how Domain-Driven Design reframed the work as understanding the domain first.</description>
+      <author>noreply@lobofoltran.dev (Gustavo Lobo)</author>
+      <category>Domain-Driven Design</category>
+      <enclosure url="https://lobofoltran.dev/blog/how-ddd-changed-how-i-build-software.png" type="image/png" length="0" />
+    </item>
+  </channel>
+</rss>

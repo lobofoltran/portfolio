@@ -1,37 +1,87 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-
   <url>
     <loc>https://lobofoltran.dev</loc>
+    <lastmod>2026-05-10T04:43:11.792Z</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
   </url>
   <url>
     <loc>https://lobofoltran.dev/blog</loc>
+    <lastmod>2026-05-10T04:43:11.790Z</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://lobofoltran.dev/courses</loc>
+    <lastmod>2026-05-10T04:43:11.791Z</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
   </url>
   <url>
     <loc>https://lobofoltran.dev/resume</loc>
+    <lastmod>2026-05-10T04:43:11.793Z</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://lobofoltran.dev/contact</loc>
+    <lastmod>2026-05-10T04:43:11.790Z</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.5</priority>
   </url>
   <url>
     <loc>https://lobofoltran.dev/blog/centralized-observability-with-prometheus-loki-promtail</loc>
+    <lastmod>2025-11-26T00:00:00.000Z</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
   </url>
   <url>
     <loc>https://lobofoltran.dev/blog/ddd-in-practice-modeling-a-real-domain</loc>
+    <lastmod>2025-11-20T00:00:00.000Z</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
   </url>
   <url>
     <loc>https://lobofoltran.dev/blog/designing-resilient-kafka-integrations</loc>
+    <lastmod>2025-11-21T00:00:00.000Z</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
   </url>
   <url>
     <loc>https://lobofoltran.dev/blog/designing-systems-that-scale-horizontally</loc>
+    <lastmod>2025-11-23T00:00:00.000Z</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
   </url>
   <url>
     <loc>https://lobofoltran.dev/blog/how-ddd-changed-how-i-build-software</loc>
+    <lastmod>2025-11-19T00:00:00.000Z</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
   </url>
   <url>
     <loc>https://lobofoltran.dev/blog/observability-with-prometheus-and-micrometer</loc>
+    <lastmod>2025-11-25T00:00:00.000Z</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
   </url>
   <url>
     <loc>https://lobofoltran.dev/blog/outbox-pattern-with-postgresql-in-practice</loc>
+    <lastmod>2025-11-22T00:00:00.000Z</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
   </url>
   <url>
     <loc>https://lobofoltran.dev/blog/postgresql-partitioning-in-practice</loc>
+    <lastmod>2025-11-24T00:00:00.000Z</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://lobofoltran.dev/blog/zero-cost-ai-gateway-cloudflare-gemini</loc>
+    <lastmod>2026-02-16T00:00:00.000Z</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
   </url>
 </urlset>
