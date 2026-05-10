@@ -39,14 +39,27 @@ Every post must provide:
 title: "..."
 date: "YYYY-MM-DD"
 categories: ["..."]
-cover: "/blog/<image>.png"
+cover: "/blog/<slug>.png"
 excerpt: "..."
 ---
 ```
 Rules:
-- `cover` is mandatory (`lib/posts.ts` throws when missing).
-- `categories` should be array of strings.
-- Keep `excerpt` short for cards/metadata.
+- `cover` and `excerpt` are mandatory (`lib/posts.ts` throws when missing). `description` is accepted as a legacy fallback for `excerpt` but new posts must use `excerpt`.
+- `categories` is an array of strings.
+- Keep `excerpt` to 1–2 lines: it powers cards, og:description, and Twitter meta.
+- Cover image filename should match the slug (`/blog/<slug>.png`). Avoid alternate names.
+- Use inline-array YAML and double-quoted strings (post-9 style); do not mix the older multi-line YAML style.
+
+## Blog Post Structure (Convention)
+Each post should follow this shape so that the catalog reads consistently:
+1. **TL;DR** — opening blockquote (`> **TL;DR** — ...`), 1–3 sentences.
+2. **Intro paragraphs** — frame the problem before any solution.
+3. **Architecture/Flow diagram** — Mermaid block where the post discusses moving parts.
+4. **H2 sections** — problem, design, code, trade-offs, failure modes ("What Breaks in Production" or equivalent).
+5. **Key Takeaways** — bullet list summarizing the post.
+6. **See Also** — 1–3 links to related posts (`/blog/<slug>`).
+
+Tables (GFM syntax) are supported — `remark-gfm` is wired in `app/blog/[slug]/page.tsx` and styled in `components/mdx-components.tsx`.
 
 ## MDX Rules
 - Markdown images are zoomable and can open lightbox.

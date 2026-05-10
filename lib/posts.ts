@@ -7,7 +7,9 @@ export type Post = {
   title: string
   excerpt: string
   date: string
+  updated: string | null
   categories: string[]
+  tags: string[]
   cover: string
   content: string
   readTimeMinutes: number
@@ -19,8 +21,11 @@ type Frontmatter = {
   description?: string
   excerpt?: string
   date?: string
+  updated?: string
+  modified?: string
   categories?: string[] | string
   category?: string[] | string
+  tags?: string[] | string
   cover?: string
 }
 
@@ -34,6 +39,12 @@ export function parsePostFile(slug: string, source: string): Post {
     throw new Error(`Post ${slug} is missing required frontmatter field: cover`)
   }
 
+  const excerpt = frontmatter.excerpt ?? frontmatter.description ?? ""
+
+  if (!excerpt) {
+    throw new Error(`Post ${slug} is missing required frontmatter field: excerpt`)
+  }
+
   const categoriesSource = frontmatter.categories ?? frontmatter.category ?? []
   const categories = Array.isArray(categoriesSource)
     ? categoriesSource
@@ -41,12 +52,17 @@ export function parsePostFile(slug: string, source: string): Post {
       ? [categoriesSource]
       : []
 
+  const tagsSource = frontmatter.tags ?? []
+  const tags = Array.isArray(tagsSource) ? tagsSource : tagsSource ? [tagsSource] : []
+
   return {
     slug,
     title: frontmatter.title ?? slug,
-    excerpt: frontmatter.excerpt ?? frontmatter.description ?? "",
+    excerpt,
     date: frontmatter.date ?? new Date(0).toISOString(),
+    updated: frontmatter.updated ?? frontmatter.modified ?? null,
     categories,
+    tags,
     cover: frontmatter.cover,
     content,
     readTimeMinutes: estimateReadTime(content),

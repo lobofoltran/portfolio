@@ -22,4 +22,22 @@ describe("post parsing", () => {
       )
     ).toThrowError("missing required frontmatter field: cover")
   })
+
+  it("fails when excerpt is missing", () => {
+    expect(() =>
+      parsePostFile(
+        "invalid",
+        `---\ntitle: Invalid\ndate: 2026-01-01\ncategories:\n  - Observability\ncover: /blog/invalid.png\n---\ncontent`
+      )
+    ).toThrowError("missing required frontmatter field: excerpt")
+  })
+
+  it("falls back to description when excerpt is absent", () => {
+    const post = parsePostFile(
+      "legacy",
+      `---\ntitle: Legacy\ndescription: Legacy description\ndate: 2026-01-01\ncategories:\n  - Observability\ncover: /blog/legacy.png\n---\ncontent`
+    )
+
+    expect(post.excerpt).toBe("Legacy description")
+  })
 })
