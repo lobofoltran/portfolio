@@ -1,34 +1,35 @@
 ---
 title: "DDD in Practice: Modeling a Real Domain with Code"
-description: "A practical example of applying Domain-Driven Design to model a real domain, enforce invariants, and prevent invalid states through code."
 date: "2025-11-20"
 categories: ["Domain-Driven Design"]
-cover: "/blog/placeholder.svg"
+cover: "/blog/ddd-in-practice-modeling-a-real-domain.png"
+excerpt: "A practical walk-through of applying Domain-Driven Design — Aggregates, Value Objects, and Repositories — to make invalid states impossible by construction."
 ---
 
-# DDD in Practice: Modeling a Real Domain with Code
+> **TL;DR** — DDD earns its complexity only when the model itself prevents invalid states. Move invariants into the Aggregate, encapsulate domain primitives behind Value Objects, and treat Repositories as the only persistence boundary. Application services become orchestration; the domain stops needing external validators.
 
-Domain-Driven Design only proves its value when the model actively **prevents invalid states** instead of relying on external validations or conventions.
+Domain-Driven Design only proves its value when the model actively **prevents invalid states** instead of relying on external validation, conventions, or service-layer checks.
 
-This article shows a practical example of how DDD changes the way domain rules are expressed directly in code.
-
----
-
-## The domain rules
-
-Consider a simplified **Order** domain with the following rules:
-
-- An order starts in the `CREATED` state  
-- Items can only be added before confirmation  
-- An order cannot be confirmed without items  
-
-These rules look trivial, but they are often implemented incorrectly.
+This article walks through a small but representative `Order` domain and shows how Aggregates, Value Objects, and Repositories combine to make invariants enforceable by construction.
 
 ---
 
-## The anemic model (anti-pattern)
+## The Domain Rules
 
-A common implementation looks like this:
+Consider a simplified `Order` domain:
+
+- An order starts in the `CREATED` state
+- Items can only be added before confirmation
+- An order cannot be confirmed without items
+- Item prices are non-negative
+
+These rules look trivial, but they are routinely implemented incorrectly. The trap is not the logic — it is *where* the logic lives.
+
+---
+
+## The Anemic Model (Anti-Pattern)
+
+A common implementation:
 
 ```java
 public class Order {
@@ -49,70 +50,140 @@ public class OrderService {
 }
 ```
 
-### Problems with this approach
+Problems:
 
-- The domain state is public and mutable
-- Business rules live outside the entity
-- Any part of the system can put the object into an invalid state
+- Domain state is public and mutable
+- Business rules live outside the entity, in services
+- `status` is a `String`, so `"COMFIRMED"` is a valid type but an invalid value
+- Any caller can put the object into an inconsistent state
 
-The model does not protect itself.
+The model does not protect itself. Every new use case adds another service-layer check, and the rules drift apart.
 
 ---
 
-## Modeling the domain with DDD
+## Modeling with DDD
 
-With DDD, the goal is to move rules into the domain model.
-
+The first move is to push invariants into the domain object.
 
 ```java
 public class Order {
 
-    private final UUID id;
+    private final OrderId id;
     private OrderStatus status = OrderStatus.CREATED;
-    private BigDecimal total = BigDecimal.ZERO;
+    private Money total = Money.ZERO;
 
-    public Order(UUID id) {
+    public Order(OrderId id) {
         this.id = id;
     }
 
-    public void addItem(BigDecimal price) {
+    public void addItem(Money price) {
         if (status != OrderStatus.CREATED) {
             throw new IllegalStateException(
                 "Items can only be added before confirmation"
             );
         }
-
         total = total.add(price);
     }
 
     public void confirm() {
-        if (total.compareTo(BigDecimal.ZERO) <= 0) {
+        if (total.isZero()) {
             throw new IllegalStateException(
                 "Order must contain at least one item"
             );
         }
-
         status = OrderStatus.CONFIRMED;
+    }
+
+    public OrderId id() { return id; }
+    public OrderStatus status() { return status; }
+    public Money total() { return total; }
+}
+```
+
+State is private. Mutation is intentional and validated. The rules live where they are enforced.
+
+---
+
+## Value Objects: Removing Primitive Obsession
+
+`String status` and `BigDecimal total` are not domain concepts — they are primitives that *carry* domain concepts. DDD pushes them into Value Objects.
+
+```java
+public enum OrderStatus { CREATED, CONFIRMED, CANCELLED }
+
+public record Money(BigDecimal amount) {
+    public static final Money ZERO = new Money(BigDecimal.ZERO);
+
+    public Money {
+        if (amount.signum() < 0) {
+            throw new IllegalArgumentException("Money must be non-negative");
+        }
+    }
+
+    public Money add(Money other) {
+        return new Money(this.amount.add(other.amount));
+    }
+
+    public boolean isZero() {
+        return amount.signum() == 0;
     }
 }
 ```
 
----
+What this buys you:
 
-### What changed?
+- `Money` cannot be negative — the constructor enforces it
+- Two `Money` values are added with domain semantics, not raw `BigDecimal`
+- `OrderStatus` cannot be misspelled; the compiler enforces the closed set
 
-With this model:
-
-- Invariants are enforced inside the entity
-- Invalid states are impossible by design
-- Services no longer contain business rules
-- The domain becomes expressive and self-defensive
-
-Application services are reduced to orchestration.
+This is the difference between **modeling a value** and **storing a value**.
 
 ---
 
-## Why this matters in real systems
+## Repositories: The Persistence Boundary
+
+Aggregates do not call the database. Repositories do.
+
+```java
+public interface OrderRepository {
+    Optional<Order> findById(OrderId id);
+    void save(Order order);
+}
+```
+
+The Aggregate stays free of `EntityManager`, `JpaRepository`, or driver concerns. The repository is the only place where the domain meets the database. This keeps invariants pure: you cannot accidentally bypass `addItem(...)` by writing directly to a row.
+
+A typical application service then reads as orchestration:
+
+```java
+@Transactional
+public void confirmOrder(OrderId id) {
+    Order order = orders.findById(id)
+        .orElseThrow(() -> new OrderNotFound(id));
+
+    order.confirm();
+
+    orders.save(order);
+}
+```
+
+No business rules in the service. No mutation outside the Aggregate.
+
+---
+
+## What Breaks When You Bypass the Model
+
+The pressure to bypass the Aggregate usually comes from three places:
+
+- **Bulk operations.** "I just need to flip status on 10k orders." Direct SQL works once, then someone runs it during a state where confirmation should be impossible.
+- **Reporting reads.** Solved by separate read models (CQRS) or read-only projections — never by widening the Aggregate's surface area.
+- **Cross-aggregate consistency.** Resist temptation to merge Aggregates. Use domain events and eventual consistency across them.
+
+Every shortcut around the Aggregate is borrowed time. The model only stays defensive if it is the only path in.
+
+---
+
+## Why This Matters in Real Systems
 
 In real systems:
 
@@ -120,20 +191,21 @@ In real systems:
 - Rules evolve over time
 - New use cases appear constantly
 
-A model that does not protect invariants will eventually fail under change.
+A model that does not protect invariants will eventually fail under change. DDD shifts complexity from services into the model — where it can be tested in isolation, evolved with intent, and trusted at the boundary.
 
-DDD shifts complexity from services to the model, where it belongs.
+---
 
-----
+## Key Takeaways
 
-## Conclusion
+- Invariants belong inside the Aggregate. If a service has to check before calling the model, the model is incomplete.
+- Replace primitives with Value Objects to encode rules in types (no negative `Money`, no misspelled status).
+- Repositories are the only persistence boundary. Aggregates know nothing about databases.
+- Application services orchestrate; they do not enforce.
+- Resist bulk-update shortcuts. They erode the only contract that keeps the model trustworthy.
 
-Domain-Driven Design is not about abstractions or theoretical purity.
+---
 
-It is about designing models that:
+## See Also
 
-- Express business rules clearly
-- Protect invariants by default
-- Make invalid states impossible
-
-When the domain model is strong, the rest of the system becomes simpler.
+- [How Domain-Driven Design Changed How I Build Software](/blog/how-ddd-changed-how-i-build-software) — the conceptual shift behind these patterns.
+- [Designing Systems That Scale Horizontally](/blog/designing-systems-that-scale-horizontally) — what changes about Aggregates and consistency once you have more than one instance.

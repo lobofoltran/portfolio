@@ -1,32 +1,37 @@
 ---
 title: "PostgreSQL Partitioning in Practice: When It Actually Pays Off"
-description: "A practical guide to PostgreSQL table partitioning, explaining when it improves performance and when it only adds complexity."
 date: "2025-11-24"
 categories: ["Databases", "Scalability"]
-cover: "/blog/placeholder.svg"
+cover: "/blog/postgresql-partitioning-in-practice.png"
+excerpt: "PostgreSQL declarative partitioning explained for production: range vs list vs hash, partition pruning vs constraint exclusion, indexing rules, and the queries that silently bypass pruning."
 ---
 
-PostgreSQL partitioning is often presented as a silver bullet for scalability.
+> **TL;DR** — Partitioning is a tool for very specific problems (very large tables, time-based access, cheap retention). It pays off only when partition pruning fires — which requires constants in `WHERE` and immutable functions. Confusing pruning with the legacy "constraint exclusion" mechanism is the most common reason teams think partitioning is broken.
 
-In reality, it is a **trade-off**.
+PostgreSQL partitioning is often presented as a silver bullet for scalability. In reality it is a trade-off:
 
 > **Partitioning solves very specific problems — and creates new ones if applied blindly.**
 
-This article focuses on **when PostgreSQL partitioning is worth the complexity**, based on real production scenarios.
+This article focuses on **when PostgreSQL partitioning is worth the complexity**, the precise mechanics that make it work, and the queries that silently break it.
 
 ---
 
-## What Partitioning Really Is
+## What Partitioning Actually Is
 
-Partitioning splits a logical table into multiple physical tables, based on a key such as:
+Partitioning splits a logical table into multiple physical tables (partitions), keyed by some column:
+
 - Time
 - Identifier range
 - Tenant
 - Geographic region
 
-From the application’s perspective, it still looks like one table.
+From the application's perspective, it still looks like one table. From the planner's perspective, it changes everything.
 
-From the database’s perspective, it changes everything.
+PostgreSQL provides three forms of declarative partitioning:
+
+- **Range** — bounds are inclusive at the lower end, exclusive at the upper end. Best for time series.
+- **List** — explicit assignment of values to partitions. Best for tenant or region.
+- **Hash** — by `mod(hash(key), N)`. Best for even distribution where no natural range exists.
 
 ---
 
@@ -36,21 +41,15 @@ Partitioning is useful when **at least one** of these conditions is true.
 
 ### 1. Very Large Tables
 
-Tables with:
-- Tens or hundreds of millions of rows
-- Continuous growth
-- Heavy write and read traffic
+Tables with tens or hundreds of millions of rows, continuous growth, and heavy read/write traffic. At this scale:
 
-At this scale:
-- Index sizes grow
-- Vacuum becomes expensive
-- Queries degrade
+- Index size grows past memory; index lookups start hitting disk
+- `VACUUM` runs longer and longer, sometimes lapping autovacuum's worker pool
+- Bloat accumulates faster than it can be cleaned
 
-Partitioning limits the working set.
+Partitioning limits the working set: queries touch one or a few partitions, vacuum runs per partition, and bloat is contained.
 
----
-
-### 2. Time-Based Data Access
+### 2. Time-Based Access Patterns
 
 If most queries filter by time:
 
@@ -60,22 +59,18 @@ FROM events
 WHERE created_at >= now() - interval '7 days';
 ```
 
-Range partitioning by time allows:
-- Partition pruning
-- Faster scans
-- Easier data retention
+Range partitioning by `created_at` allows partition pruning, faster scans, and trivial retention.
 
----
+### 3. Cheap Data Retention
 
-### 3. Data Retention and Archival
-
-Dropping data becomes cheap:
+Dropping data becomes O(1) instead of O(rows):
 
 ```sql
-DROP TABLE events_2023_01;
+ALTER TABLE events DETACH PARTITION events_2024_01;
+DROP TABLE events_2024_01;
 ```
 
-This is faster and safer than deleting millions of rows.
+This is dramatically faster than `DELETE FROM events WHERE created_at < ...`, which generates row-level deletes, bloat, and WAL traffic.
 
 ---
 
@@ -83,120 +78,159 @@ This is faster and safer than deleting millions of rows.
 
 Partitioning adds overhead. It is harmful when:
 
-- Tables are small
-- Access patterns are random
-- Queries do not include the partition key
-- Index maintenance cost outweighs benefits
+- Tables are small (under ~10M rows for most workloads)
+- Access patterns are random and rarely include the partition key
+- Queries do not filter by the partition key (no pruning, all partitions scanned)
+- Index maintenance cost outweighs the access benefit
 
-Partitioning does not fix:
-- Bad indexes
-- Poor queries
-- Missing filters
+Partitioning does not fix bad indexes, missing filters, or poor query plans. It amplifies them.
 
 ---
 
-## Partitioning Strategies
+## Partition Pruning vs Constraint Exclusion
 
-### Range Partitioning (Most Common)
+These are routinely confused. They are not the same.
+
+| | Partition Pruning | Constraint Exclusion |
+|---|---|---|
+| Applies to | Declarative partitioning | Legacy inheritance partitioning |
+| When | Plan time **and** execution time (PG 11+) | Plan time only |
+| Mechanism | Partition bounds | `CHECK` constraints |
+| Default | Always on for declarative partitions | `constraint_exclusion = partition` |
+
+Partition pruning is what makes modern PostgreSQL partitioning fast. Constraint exclusion is the older mechanism for inheritance-based partitioning, which you generally should not be using for new tables.
+
+For declarative partitions, pruning happens automatically — provided the planner can determine which partitions are relevant from the `WHERE` clause.
+
+---
+
+## Strategies in Code
+
+### Range (most common)
 
 ```sql
 CREATE TABLE events (
-  id BIGSERIAL,
+  id         BIGSERIAL,
   created_at TIMESTAMP NOT NULL,
-  payload JSONB
+  payload    JSONB
 ) PARTITION BY RANGE (created_at);
-```
 
-```sql
 CREATE TABLE events_2025_01
   PARTITION OF events
   FOR VALUES FROM ('2025-01-01') TO ('2025-02-01');
+
+CREATE TABLE events_2025_02
+  PARTITION OF events
+  FOR VALUES FROM ('2025-02-01') TO ('2025-03-01');
 ```
 
-Ideal for logs, events, transactions.
-
----
-
-### Hash Partitioning
+### Hash
 
 ```sql
-PARTITION BY HASH (tenant_id);
+CREATE TABLE sessions (
+  id         UUID PRIMARY KEY,
+  tenant_id  UUID NOT NULL,
+  created_at TIMESTAMP NOT NULL,
+  data       JSONB
+) PARTITION BY HASH (tenant_id);
+
+CREATE TABLE sessions_p0 PARTITION OF sessions FOR VALUES WITH (MODULUS 8, REMAINDER 0);
+-- ... up to remainder 7
 ```
 
-Useful when:
-- Load must be evenly distributed
-- Queries always include the partition key
-
-Less flexible for retention.
+Hash distributes load evenly but offers nothing for retention — you cannot drop "January" because rows are spread across all partitions.
 
 ---
 
 ## Indexing Partitioned Tables
 
-Indexes are **per partition**, not global.
+Indexes are **per partition**, not global. That means:
 
-That means:
 - More indexes to manage
 - More disk usage
 - Longer planning time if poorly designed
 
-Design indexes carefully and keep them minimal.
+Two rules that matter:
+
+- Define indexes on the **parent** table (`CREATE INDEX ON events (created_at)`); they propagate to existing and future partitions.
+- A `PRIMARY KEY` or `UNIQUE` constraint must include the partition key, otherwise PostgreSQL cannot enforce uniqueness across partitions.
+
+Keep indexes minimal. The cost compounds: 12 monthly partitions × 4 indexes = 48 indexes to maintain.
+
+---
+
+## Queries That Silently Bypass Pruning
+
+Partitioning pays off only if the planner can prune. Common bugs:
+
+**1. Missing the partition key in `WHERE`.** Without `created_at` in the predicate, every partition is scanned.
+
+**2. Wrapping the partition column in a non-immutable function.**
+
+```sql
+-- Pruning may not happen at plan time:
+WHERE date_trunc('day', created_at) = date_trunc('day', now())
+
+-- Prunes correctly:
+WHERE created_at >= date_trunc('day', now())
+  AND created_at <  date_trunc('day', now()) + interval '1 day'
+```
+
+The first form pushes work into the function; the second leaves the partition column directly comparable.
+
+**3. Joining without forwarding the partition key.** When you join `events` with `users`, ensure the planner can derive `events.created_at` filters from the `users` side, or add explicit time bounds to both sides.
+
+**4. Comparing across types.** `created_at` (`timestamp`) compared with a `text` value blocks pruning. Match types exactly.
+
+Verify pruning with `EXPLAIN`:
+
+```sql
+EXPLAIN (ANALYZE, BUFFERS)
+SELECT count(*)
+FROM events
+WHERE created_at >= now() - interval '1 day';
+```
+
+If the plan lists every partition, pruning failed. The plan should mention only the relevant partitions, with the rest absent.
 
 ---
 
 ## Operational Considerations
 
-Partitioning impacts operations:
-
-- Backups may take longer
-- Schema changes must be applied to all partitions
-- Monitoring becomes more complex
-
-Automate partition creation and cleanup.
-
----
-
-## Partition Pruning Is Everything
-
-Partitioning only works if PostgreSQL can prune partitions.
-
-This requires:
-- Explicit filters on the partition key
-- Avoiding functions that block pruning
-- Proper data types
-
-Without pruning, performance degrades.
+- **Partition creation must be automated.** A range-partitioned table without a `2025-04` partition rejects inserts on April 1st. Schedule a job to create the next N partitions ahead of time, or use an extension like `pg_partman`.
+- **Schema changes affect every partition.** `ALTER TABLE events ADD COLUMN ...` propagates, but DDL on huge tables can lock partitions; do it during low-traffic windows.
+- **`VACUUM` is per partition.** Tune `autovacuum` per partition for high-churn tables.
+- **Backups and replication work transparently** — but logical replication on partitioned tables has subtle rules; test it.
 
 ---
 
 ## Partitioning vs Sharding
 
-Partitioning:
-- Single database
-- Strong consistency
-- Simpler operations
+These solve different problems.
 
-Sharding:
-- Multiple databases
-- Higher complexity
-- Horizontal database scaling
+| | Partitioning | Sharding |
+|---|---|---|
+| Scope | Single database | Multiple databases |
+| Consistency | Strong (single node) | Per-shard (cross-shard is hard) |
+| Operations | One DB to operate | N DBs to operate |
+| Use case | One node still has headroom | One node is the bottleneck |
 
-Partitioning is often a **step before sharding**, not a replacement.
+Partitioning is often a **step before sharding**, not a replacement. Get partitioning right first; you may never need to shard.
 
 ---
 
-## Final Thoughts
+## Key Takeaways
 
-PostgreSQL partitioning is a powerful tool.
+- Partition only when you can name a concrete reason: very large table, time-based access, or cheap retention. Otherwise it is overhead.
+- Pruning, not constraint exclusion, is what makes modern partitioning fast. They are not the same mechanism.
+- Always include the partition key in `WHERE`, and avoid wrapping it in non-immutable functions.
+- Define indexes on the parent table; keep them minimal — the cost compounds across partitions.
+- Automate partition creation. A missing future partition is a write outage.
+- Verify pruning with `EXPLAIN`. If every partition is in the plan, the pattern is not paying off.
 
-Used correctly:
-- It improves performance
-- Simplifies data lifecycle management
-- Keeps large tables manageable
+---
 
-Used prematurely:
-- It complicates everything
-- Provides little benefit
-- Increases operational risk
+## See Also
 
-Partitioning should be a **measured response to real pressure**, not a default design choice.
+- [Outbox Pattern with PostgreSQL in Practice](/blog/outbox-pattern-with-postgresql-in-practice) — partitioning the outbox archive and consumer dedup table.
+- [Designing Systems That Scale Horizontally](/blog/designing-systems-that-scale-horizontally) — partitioning is one of the database-side tools when scaling.

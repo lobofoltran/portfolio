@@ -1,66 +1,57 @@
 ---
 title: "Observability with Prometheus and Micrometer"
-description: "How to instrument backend services with Micrometer and Prometheus to understand system behavior, detect failures early, and operate reliably in production."
 date: "2025-11-25"
 categories: ["Observability"]
-cover: "/blog/placeholder.svg"
+cover: "/blog/observability-with-prometheus-and-micrometer.png"
+excerpt: "How to instrument JVM services with Micrometer and Prometheus — counters, timers, histograms with proper quantiles, and the cardinality discipline that decides whether the stack stays healthy."
 ---
+
+> **TL;DR** — Monitoring tells you something is wrong; observability tells you why. With Prometheus + Micrometer, the wins come from picking the right metric type (Counter, Timer/Histogram, Gauge), computing quantiles correctly with `histogram_quantile`, and never using high-cardinality labels. Most production incidents in this stack are cardinality, not query speed.
 
 Observability is often confused with monitoring.
 
-Monitoring tells you **that** something is wrong.  
-Observability helps you understand **why** it is wrong.
-
-In production systems, especially distributed ones, this difference matters.
+Monitoring tells you **that** something is wrong. Observability helps you understand **why**. In production systems — especially distributed ones — the difference is the gap between "the alert fired" and "we know what to do".
 
 ---
 
 ## Why Logs Alone Are Not Enough
 
-Logs are useful, but they have limitations:
+Logs are useful but limited:
 
 - They are unstructured by default
-- They are hard to aggregate
-- They do not provide a global view
+- They are expensive to aggregate at scale
+- They do not give you a global view
 - They are reactive, not predictive
 
-When systems scale horizontally, logs alone stop being sufficient.
-
-Metrics become the primary signal.
+Once a service has more than one instance, logs alone stop being sufficient. Metrics become the primary signal for *behavior over time*; logs explain a single occurrence.
 
 ---
 
-## Prometheus as a Metrics Backbone
+## Prometheus as the Metrics Backbone
 
 Prometheus is built around a simple idea:
 
 > **Collect numeric time-series data and make it queryable.**
 
-It excels at:
-- Measuring system behavior over time
-- Detecting trends and anomalies
-- Alerting before users notice failures
-
-Prometheus does not replace logs or traces — it complements them.
+It excels at measuring system behavior over time, detecting trends, and alerting before users notice failures. It does not replace logs or traces — it complements them.
 
 ---
 
-## Micrometer: Instrumentation for JVM Applications
+## Micrometer: The JVM Instrumentation Facade
 
-Micrometer is a metrics facade for JVM-based applications.
+Micrometer is a metrics facade for JVM applications. It lets you:
 
-It allows you to:
 - Instrument code once
-- Export metrics to multiple backends
-- Standardize naming and labels
+- Export to Prometheus, Datadog, New Relic, etc.
+- Standardize naming conventions and labels
 
-In Spring Boot applications, Micrometer is the de facto standard.
+In Spring Boot, Micrometer is the de-facto standard and ships with auto-configuration for HTTP server, JDBC, JVM, and more.
 
 ---
 
-## Basic Micrometer Setup
+## Basic Setup
 
-Add dependencies:
+Add the registry:
 
 ```xml
 <dependency>
@@ -69,7 +60,7 @@ Add dependencies:
 </dependency>
 ```
 
-Expose the metrics endpoint:
+Expose the scrape endpoint:
 
 ```properties
 management.endpoints.web.exposure.include=health,info,prometheus
@@ -77,127 +68,166 @@ management.endpoints.web.exposure.include=health,info,prometheus
 
 Prometheus scrapes:
 
+```text
+GET /actuator/prometheus
 ```
-/actuator/prometheus
-```
+
+That is it. Spring Boot already publishes JVM, GC, thread, HTTP server, and DataSource metrics out of the box.
 
 ---
 
-## Core Metrics You Should Always Have
+## Picking the Right Metric Type
 
-### Request Metrics
+The choice matters more than the names you give. Three common types:
 
-- Request count
-- Latency (percentiles)
-- Error rate
+- **Counter** — monotonically increasing total (requests, errors, events). Always queried with `rate()` in PromQL, never read raw.
+- **Timer / Histogram** — duration distributions; produces `_count`, `_sum`, and bucketed `_bucket` time series. Source of latency percentiles.
+- **Gauge** — current value (queue depth, active connections, outbox backlog). May go up or down.
 
-Example:
+Counters and gauges are easy to abuse. Picking a Counter for "current users" is a common bug; picking a Gauge for "total requests" loses the ability to compute rates.
+
+---
+
+## Core Metrics Every Service Should Have
+
+### Request Metrics (RED)
+
+- **R**ate: requests per second
+- **E**rrors: error count / rate
+- **D**uration: latency distribution
 
 ```java
 Timer.builder("http.server.requests")
   .tag("method", "POST")
-  .tag("endpoint", "/orders")
+  .tag("uri", "/orders")
+  .tag("status", "200")
+  .publishPercentileHistogram() // emits _bucket series for histogram_quantile
   .register(meterRegistry);
 ```
 
----
+`publishPercentileHistogram()` is the part most people forget. Without it, you cannot compute true server-side percentiles in Prometheus — you only get client-side approximations on a single instance, which cannot be aggregated across instances.
 
 ### JVM Metrics
 
-Micrometer provides these out of the box:
+Provided automatically: heap, GC pause time, thread count, CPU usage, classloading. These explain performance issues better than logs.
 
-- Heap usage
-- GC pauses
-- Thread count
-- CPU usage
+### Business Metrics
 
-These metrics explain performance issues better than logs.
-
----
-
-## Custom Business Metrics
-
-Infrastructure metrics are not enough.
-
-You should measure **business-relevant signals**.
-
-Examples:
-- Orders created per minute
-- Payments processed
-- Events published
-- Outbox backlog size
+Infrastructure metrics are not enough. Measure business signals:
 
 ```java
 Gauge.builder("outbox.pending.events", outboxRepository::countPending)
+  .description("Unpublished outbox events")
   .register(meterRegistry);
 ```
 
-This connects system health to business impact.
+This connects system health to business impact: an unpublished outbox is a business problem, not just a Kafka problem.
+
+---
+
+## Histograms and Quantiles, Done Right
+
+Two failure modes are extremely common:
+
+**1. Averaging quantiles across instances.** This is mathematically wrong. The average of two p95 values is not the p95 of the combined population. Always compute quantiles from raw histogram buckets.
+
+**2. Computing quantiles without `rate()`.** Without `rate()`, you get cumulative quantiles from process start, not current behavior.
+
+The correct PromQL for a classic histogram (with `le` buckets):
+
+```promql
+histogram_quantile(
+  0.95,
+  sum by (le, service) (rate(http_server_requests_seconds_bucket[5m]))
+)
+```
+
+For Prometheus native histograms (Prometheus 2.40+, no `le` label needed):
+
+```promql
+histogram_quantile(
+  0.95,
+  sum by (service) (rate(http_server_requests_seconds[5m]))
+)
+```
+
+Native histograms reduce series count dramatically and remove the bucket-tuning problem; if your stack supports them, prefer them.
 
 ---
 
 ## Labels and Cardinality
 
-Labels are powerful but dangerous.
+Labels are powerful and dangerous. Each unique combination of label values is a separate time series.
 
-Good labels:
-- HTTP method
-- Status code
-- Service name
+Good labels (bounded, low cardinality):
 
-Bad labels:
-- User ID
-- Order ID
-- Random values
+- HTTP method, status class, service name, environment, region
 
-High cardinality leads to:
-- Memory pressure
-- Slow queries
-- Unstable Prometheus servers
+Bad labels (unbounded, high cardinality):
 
-Design labels carefully.
+- User ID, order ID, request ID, raw URL with query string, full error message
+
+Practical guideline: **keep total active series per metric below ~10k**, and total per Prometheus instance below a few million. When you want a high-cardinality dimension, the right tool is usually:
+
+- **Logs** (Loki) for the unbounded value
+- **Traces** for per-request inspection
+- **Exemplars** for linking a histogram bucket to one example trace ID
+
+For the centralized stack that scales these decisions, see [Centralized Observability with Prometheus, Loki, and Promtail](/blog/centralized-observability-with-prometheus-loki-promtail).
 
 ---
 
 ## Alerting: From Metrics to Action
 
 Alerts should be:
-- Actionable
-- Rare
-- Meaningful
 
-Bad alert:
-> CPU usage above 80%
+- **Actionable** — there is something a human should do
+- **Rare** — alerts should fire when intent is unmet, not when noise crosses a threshold
+- **Symptom-based** — reflect user impact, not raw resource use
 
-Better alert:
-> Error rate above 2% for 5 minutes
+Bad: `cpu_usage > 80%`. Good: `error rate > 2% for 5 minutes`.
 
-Alerts should reflect **user impact**, not raw resource usage.
+A working alert template:
+
+```yaml
+- alert: OrdersErrorRateHigh
+  expr: |
+    sum(rate(http_server_requests_seconds_count{service="orders",status=~"5.."}[5m]))
+      /
+    sum(rate(http_server_requests_seconds_count{service="orders"}[5m]))
+      > 0.02
+  for: 5m
+  labels:
+    severity: page
+  annotations:
+    summary: "Orders 5xx > 2% for 5m"
+    runbook: "https://wiki/runbooks/orders-5xx"
+```
+
+If an alert lacks a runbook, an owner, and a remediation, it is noise.
 
 ---
 
 ## Observability as a Design Concern
 
-Observability is not an afterthought.
+Observability is not an afterthought. Well-designed systems expose their internal state, make failure visible, and enable safe operation under stress. If you cannot observe a system, you cannot operate it confidently.
 
-Well-designed systems:
-- Expose internal state
-- Make failure visible
-- Enable safe operations
-
-If you cannot observe a system, you cannot operate it confidently.
+The cheapest way to embed this is to instrument as you build: every new endpoint gets a Timer with `publishPercentileHistogram()`, every new background worker gets a Counter for processed/failed and a Gauge for backlog. The cost is low; the alternative — instrumenting after an incident — is always more expensive.
 
 ---
 
-## Final Thoughts
+## Key Takeaways
 
-Prometheus and Micrometer do not make systems reliable.
+- Pick the right metric type: Counter for totals, Timer/Histogram for latencies, Gauge for current state.
+- For percentiles, always use `histogram_quantile(rate(..._bucket[...]))`. Never average quantiles across instances.
+- Enable `publishPercentileHistogram()` on Timers — without it, server-side aggregated percentiles are not possible.
+- Cardinality is the silent killer. Keep label values bounded; push high-cardinality data to logs, traces, or exemplars.
+- Alerts must reflect user impact, not raw resource thresholds, and must come with a runbook.
 
-They make systems **understandable**.
+---
 
-Reliability emerges when:
-- Behavior is visible
-- Trends are known
-- Failures are detected early
+## See Also
 
-Observability turns production from a black box into an engineering discipline.
+- [Centralized Observability with Prometheus, Loki, and Promtail](/blog/centralized-observability-with-prometheus-loki-promtail) — the centralized pipeline that consumes these metrics.
+- [Designing Resilient Kafka Integrations](/blog/designing-resilient-kafka-integrations) — what to instrument on the producer/outbox side.
+- [Designing Systems That Scale Horizontally](/blog/designing-systems-that-scale-horizontally) — why per-instance metrics are not enough.

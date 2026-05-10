@@ -1,48 +1,61 @@
 ---
 title: "Designing Resilient Kafka Integrations"
-description: "How to design Kafka-based integrations that tolerate downtime, avoid data loss, and remain reliable under real-world failure scenarios."
 date: "2025-11-21"
 categories: ["Distributed Systems", "Event-Driven Architecture"]
-cover: "/blog/placeholder.svg"
+cover: "/blog/designing-resilient-kafka-integrations.png"
+excerpt: "How to design Kafka integrations that survive broker outages, partial failures, and consumer rebalances — with concrete producer configs, the outbox pattern, and idempotent consumers."
 ---
 
-Kafka is often introduced as a *highly available* and *fault-tolerant* system.  
-What is less discussed is a simple truth:
+> **TL;DR** — Treat Kafka as eventually available, not always available. Persist business state first, publish via the outbox pattern, configure the producer for idempotence (default since Kafka 3.0), and make every consumer idempotent. Resilience is a property of the integration, not of the broker.
+
+Kafka is often introduced as a *highly available* and *fault-tolerant* system. What is less discussed is a simple truth:
 
 > **Kafka will eventually be unavailable.**
 
-Brokers restart.  
-Networks partition.  
-Zookeeper or KRaft has issues.  
-Cloud infrastructure fails.
+Brokers restart. Networks partition. KRaft or ZooKeeper has issues. Cloud zones fail. If your system assumes Kafka is *always* available, it is not resilient — it is fragile.
 
-If your system assumes Kafka is *always* available, it is not resilient — it is fragile.
-
-This article focuses on **how to design Kafka integrations that survive real failures**, without losing data or cascading outages across systems.
+This article focuses on **how to design Kafka integrations that survive real failures**, without losing data or cascading outages.
 
 ---
 
-## The Core Problem: Kafka as a Dependency
+## Resilience Architecture at a Glance
 
-From an application’s perspective, Kafka is an **external dependency**.
+```mermaid
+flowchart LR
+    Cmd([Command])
+    App[Application]
+    DB[(PostgreSQL)]
+    Outbox[(outbox_events)]
+    Worker[Outbox Worker]
+    Kafka[(Kafka)]
+    Consumer[Consumer]
 
-That means:
+    Cmd --> App
+    App -- "tx: write business + outbox" --> DB
+    DB -.-> Outbox
+    Worker -- "poll unpublished" --> Outbox
+    Worker -- "send + ack" --> Kafka
+    Kafka --> Consumer
+    Consumer -- "dedupe by event_id" --> Consumer
+```
+
+The critical path (`App → DB`) does not depend on Kafka. The async path (`Worker → Kafka → Consumer`) tolerates broker downtime by design.
+
+---
+
+## Kafka as a Dependency
+
+From an application's perspective, Kafka is an external dependency. That means:
+
 - It can be slow
 - It can be temporarily unavailable
-- It can partially fail
-- It can accept writes but not reads (or the opposite)
+- It can partially fail (writes accepted but reads stale, leader unavailable, ISR shrinking)
 
-Treating Kafka as “always on” creates tight coupling between:
-- Business logic
-- Infrastructure availability
-
-Resilient systems **decouple business correctness from infrastructure health**.
+Treating Kafka as "always on" couples business correctness to infrastructure health. Resilient systems **decouple business correctness from infrastructure availability**.
 
 ---
 
 ## Common Anti-Patterns
-
-Before discussing solutions, let’s be explicit about what *not* to do.
 
 ### 1. Synchronous Business Flow Depends on Kafka
 
@@ -51,15 +64,7 @@ orderService.createOrder(order);
 kafkaProducer.send(orderCreatedEvent); // critical path
 ```
 
-If Kafka is down:
-
-- Order creation fails
-- Users see errors
-- Business stops
-
-Kafka should **never** be part of the synchronous business success path.
-
----
+If Kafka is down: order creation fails, users see errors, business stops. Kafka must **never** be on the synchronous business success path.
 
 ### 2. Retrying Blindly Until It Works
 
@@ -74,75 +79,54 @@ while (true) {
 }
 ```
 
+Threads pile up, backpressure propagates, the system collapses under load. Unbounded retries are denial-of-service bugs against your own service.
 
-Problems:
+### 3. "Kafka Will Handle It"
 
-- Threads get stuck
-- Backpressure propagates
-- System collapses under load
-
-Retries without boundaries are **denial-of-service bugs**.
-
----
-
-### 3. Assuming “Kafka Will Handle It”
-
-Kafka guarantees durability *after* data is written to the log.
-
-It does **not** guarantee:
-
-- Your producer sent the event
-- Your transaction committed
-- Your app didn’t crash between DB commit and send
-
-That gap is where most data loss happens.
+Kafka guarantees durability *after* data is written to the log. It does **not** guarantee that your producer sent the event, that your transaction committed, or that your app didn't crash between DB commit and `send`. That gap is where most data loss happens.
 
 ---
 
 ## Design Principle: Kafka Is Eventually Available
 
-A resilient integration follows one rule:
-
 > **The system must keep working even if Kafka is temporarily unavailable.**
 
 That implies:
 
-- Business data is persisted first
-- Events are delivered asynchronously
-- Failures are isolated and recoverable
+- Business data is persisted first, in your own database
+- Events are delivered asynchronously, decoupled from request handling
+- Failures are isolated to the delivery path and recoverable on retry
 
 ---
 
 ## The Outbox Pattern (Foundation of Resilience)
 
-The **Outbox Pattern** is the most reliable way to integrate Kafka with transactional systems.
+The outbox pattern replaces dual writes with a single atomic write to your database, plus an asynchronous publisher.
 
-### Basic Idea
+1. Write business data and the outbox event in the **same DB transaction**
+2. A background worker reads unpublished events and sends them to Kafka
+3. On successful send, mark the event as published
+4. Retry failed sends with backoff
 
-1. Write business data and event to the **same database transaction**
-2. Persist events in an `outbox` table
-3. A background process publishes events to Kafka
-4. On success, mark events as sent
-
----
-
-### Example Schema
+Schema:
 
 ```sql
-CREATE TABLE outbox (
+CREATE TABLE outbox_events (
   id UUID PRIMARY KEY,
-  aggregate_type TEXT,
-  aggregate_id TEXT,
-  event_type TEXT,
-  payload JSONB,
-  created_at TIMESTAMP,
-  published_at TIMESTAMP NULL
+  aggregate_type TEXT NOT NULL,
+  aggregate_id   TEXT NOT NULL,
+  event_type     TEXT NOT NULL,
+  payload        JSONB NOT NULL,
+  created_at     TIMESTAMP NOT NULL DEFAULT now(),
+  published_at   TIMESTAMP NULL
 );
+
+CREATE INDEX idx_outbox_unpublished
+  ON outbox_events (created_at)
+  WHERE published_at IS NULL;
 ```
 
----
-
-### Transactional Write
+Transactional write:
 
 ```java
 @Transactional
@@ -154,52 +138,68 @@ public void createOrder(CreateOrderCommand cmd) {
 }
 ```
 
-If the transaction commits:
+If the transaction commits, both the business state and the event exist. If it rolls back, neither does. **No gap, no lost events.**
 
-- Order exists
-- Event exists
-
-If it rolls back:
-
-- Neither exists
-
-**No gaps. No lost events.**
-
-## Asynchronous Publishing with Retry and Backoff
-
-A background worker is responsible for delivery.
-
-
-```java
-List<OutboxEvent> events =
-  outboxRepository.findUnpublished(limit);
-
-for (OutboxEvent event : events) {
-  try {
-    kafkaProducer.send(event.toKafkaRecord());
-    outboxRepository.markAsPublished(event.id());
-  } catch (Exception e) {
-    // leave it for retry
-  }
-}
-```
-
-Key properties:
-
-- Idempotent
-- Retryable
-- No blocking business logic
-- Kafka downtime is tolerated
+For the deeper PostgreSQL-specific implementation see [Outbox Pattern with PostgreSQL in Practice](/blog/outbox-pattern-with-postgresql-in-practice).
 
 ---
 
-## Idempotency: Required, Not Optional
+## Producer Configuration That Actually Matters
 
-Retries mean **duplicates will happen**.
+Since Kafka 3.0, **`enable.idempotence` defaults to `true`**, which automatically forces:
 
-Your consumers must be idempotent.
+- `acks=all`
+- `retries=Integer.MAX_VALUE`
+- `max.in.flight.requests.per.connection ≤ 5`
 
-### Example: Consumer Deduplication
+In practice, leaving the defaults and avoiding application-level resends is the right call:
+
+```properties
+# Most of these are now defaults; pinning them is documentation.
+acks=all
+enable.idempotence=true
+max.in.flight.requests.per.connection=5
+delivery.timeout.ms=120000
+linger.ms=10
+```
+
+Idempotence is guaranteed only **within a single producer session**. If you swap producer instances or your process restarts, the broker cannot deduplicate retries across sessions — which is why consumer-side idempotency is still mandatory (see below).
+
+For end-to-end exactly-once across topics, set a `transactional.id`:
+
+```java
+Properties props = new Properties();
+props.put("bootstrap.servers", "kafka:9092");
+props.put("transactional.id", "orders-tx-1"); // stable per producer instance
+
+Producer<String, String> producer =
+    new KafkaProducer<>(props, new StringSerializer(), new StringSerializer());
+
+producer.initTransactions();
+try {
+    producer.beginTransaction();
+    producer.send(new ProducerRecord<>("orders", id, payload));
+    producer.commitTransaction();
+} catch (ProducerFencedException | OutOfOrderSequenceException | AuthorizationException e) {
+    // Unrecoverable: another instance fenced us, or auth changed.
+    producer.close();
+} catch (KafkaException e) {
+    producer.abortTransaction();
+}
+```
+
+For transactional EOS to actually hold, also configure:
+
+- Topics involved in transactions: `replication.factor ≥ 3`, `min.insync.replicas = 2`
+- Consumers: `isolation.level=read_committed`
+
+Skipping any of these silently downgrades the guarantee.
+
+---
+
+## Idempotency on the Consumer Side
+
+Retries happen. Producer rebalances happen. At-least-once is the practical default, even with idempotence enabled across sessions. **Consumers must be idempotent.**
 
 ```java
 if (processedEventRepository.exists(eventId)) {
@@ -210,125 +210,75 @@ process(event);
 processedEventRepository.save(eventId);
 ```
 
-Without idempotency:
+Two notes:
 
-- Retries cause corruption
-- Side effects multiply
-- Data integrity breaks
+- The dedup table needs its own retention policy (rolling window, partitioned by date) or it grows unbounded.
+- The dedup write must be in the same transaction as the side effects, otherwise you can lose the dedup record after the side effect ran.
 
 ---
 
 ## Handling Partial Kafka Failures
 
-Kafka can fail in subtle ways:
+Kafka fails in subtle ways: leader unavailable, ISR shrinking, produce timeout, network partitions. The producer config above mitigates these — but configuration alone does not replace architectural safety.
 
-- Leader unavailable
-- ISR shrinking
-- Produce timeout
-- Network partitions
-
-### Producer Configuration Matters
-
-Minimum baseline:
-
-```properties
-acks=all
-enable.idempotence=true
-retries=Integer.MAX_VALUE
-max.in.flight.requests.per.connection=5
-```
-
-This reduces:
-
-- Duplicate events
-- Lost writes
-- Inconsistent ordering
-
-But configuration alone **does not replace architectural safety**.
-
----
-
-## Circuit Breakers for Kafka Producers
-
-If Kafka is clearly unhealthy, **stop trying temporarily**.
+A circuit breaker on the producer prevents the service from spending threads on a degraded broker:
 
 ```java
-if (kafkaCircuitBreaker.isOpen()) {
-  return;
-}
+// Resilience4j sketch: 5 failures within 60s → open for 30s, half-open with 2 trial calls
+CircuitBreakerConfig cfg = CircuitBreakerConfig.custom()
+    .failureRateThreshold(50)
+    .slidingWindowSize(20)
+    .minimumNumberOfCalls(5)
+    .waitDurationInOpenState(Duration.ofSeconds(30))
+    .permittedNumberOfCallsInHalfOpenState(2)
+    .build();
 ```
 
-Benefits:
-
-- Protects thread pools
-- Avoids log storms
-- Keeps the system responsive
-
-Kafka recovery is handled later by the outbox worker.
+When the breaker is open, the outbox worker simply pauses publishing. Events accumulate in the outbox table — exactly what it is designed for.
 
 ---
 
 ## Observability: Know When Kafka Is Hurting You
 
-Resilience without observability is blind optimism.
+Resilience without observability is blind optimism. Track:
 
-You should monitor:
+- `outbox_events_pending` — unpublished count; growth = Kafka pressure
+- `outbox_publish_latency_seconds` — histogram, watch p99
+- `outbox_publish_failures_total` — error rate by exception class
+- `kafka_producer_record_send_total` and `kafka_producer_record_error_total` — built-in client metrics
 
-- Outbox size
-- Publish latency
-- Retry count
-- Kafka error rate
+A growing outbox is not a failure — it is a signal. The system is doing the right thing: queueing events that will be delivered when Kafka recovers.
 
-### Example Metrics
-
-```text
-outbox_events_pending
-outbox_publish_failures_total
-kafka_producer_latency
-```
-
-A growing outbox is not a failure — it is a **signal**.
+For instrumentation patterns, see [Observability with Prometheus and Micrometer](/blog/observability-with-prometheus-and-micrometer).
 
 ---
 
-## Failure Scenarios (Realistic)
+## Realistic Failure Scenarios
 
-### Kafka Down for 10 Minutes
+| Scenario | What Happens | Why It Holds |
+|---|---|---|
+| Kafka down for 10 minutes | Business continues, outbox grows, events delivered later | Outbox decouples persistence from delivery |
+| App crash after DB commit | Event still in outbox, delivered on restart | Atomic write + worker recovery |
+| Producer reconnects with new session | Possible duplicate sends | Consumer dedup absorbs the duplicate |
+| Kafka recovers slowly under load | Backoff and circuit breaker prevent overload | Open breaker pauses worker; recovery is graceful |
 
-- Business continues
-- Outbox grows
-- Events are delivered later
-- No data loss
-
-### App Crash After DB Commit
-
-- Event is still in outbox
-- Delivered on restart
-
-### Kafka Recovers Slowly
-
-- Backoff prevents overload
-- Circuit breaker avoids pressure
-
-This is **operational resilience**, not theoretical reliability.
+This is operational resilience, not theoretical reliability.
 
 ---
 
-## Final Thoughts
+## Key Takeaways
 
-Kafka is a powerful backbone — but it is still infrastructure.
+- Kafka is eventually available. The integration must keep working when it is not.
+- Persist business state and outbox events in the same DB transaction. Kafka becomes async, never transactional with your DB.
+- Trust the Kafka 3.0+ defaults: idempotence is on, `acks=all`, retries are infinite, `max.in.flight ≤ 5`. Don't override unless you know why.
+- For exactly-once across topics: set `transactional.id`, replicate ≥ 3, `min.insync.replicas=2`, consumers `read_committed`.
+- Consumers must be idempotent. Idempotence on the producer covers a session; consumers cover everything else.
+- Observe the outbox, not just Kafka. Outbox growth tells you Kafka is hurting before users notice.
 
-**Resilient systems assume failure and design around it.**
+---
 
-If your architecture:
+## See Also
 
-- Persists business state first
-- Decouples delivery
-- Embraces retries and idempotency
-- Observes failure instead of fearing it
-
-Then Kafka downtime becomes:
-
-> an inconvenience, not an outage.
-
-That is the difference between *using Kafka* and *engineering with Kafka*.
+- [Outbox Pattern with PostgreSQL in Practice](/blog/outbox-pattern-with-postgresql-in-practice) — the persistence side in depth.
+- [Designing Systems That Scale Horizontally](/blog/designing-systems-that-scale-horizontally) — why idempotency is non-negotiable when you have more than one consumer.
+- [Observability with Prometheus and Micrometer](/blog/observability-with-prometheus-and-micrometer) — instrumenting the producer and outbox worker.

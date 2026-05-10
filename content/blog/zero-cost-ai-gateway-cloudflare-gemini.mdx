@@ -1,49 +1,65 @@
 ---
 title: "Zero-Cost AI Gateway on the Edge"
-excerpt: "A production-style AI Gateway on Cloudflare Workers, Gemini free tier, and R2 with strict auth, observability, and zero direct infrastructure cost."
-description: "Designing a zero-cost AI Gateway on Cloudflare edge using Auth Worker, LLM Proxy, Gemini free tier, and R2 logs."
 date: "2026-02-16"
 categories: ["Distributed Systems", "Cloudflare", "AI Infrastructure"]
-tags: ["Cloudflare", "Edge Computing", "LLM", "AI Infrastructure", "Distributed Systems"]
-cover: "/blog/ai-gateway-architecture.png"
+cover: "/blog/zero-cost-ai-gateway-cloudflare-gemini.png"
+excerpt: "A production-style AI Gateway on Cloudflare Workers, Gemini free tier, and R2 — strict edge auth, native rate limiting, durable audit trail, and zero direct infrastructure cost."
 ---
 
-This post describes a production-style AI Gateway that runs completely on free-tier infrastructure:
+> **TL;DR** — Direct client-to-LLM is a security and observability dead end. A small AI gateway on Cloudflare Workers (Auth + Proxy), Gemini for inference, and R2 for audit logs gives you edge JWT validation, model allowlisting, native per-tenant rate limiting, and a durable prompt/response trail — all on free-tier quotas. The architecture is constrained but real, not a toy.
 
-- Cloudflare Workers for edge control plane
-- Gemini free API tier for inference
-- R2 for request/response and metrics persistence
-- Stateless client auth sync using Zustand + JSON payloads
+This post describes a production-style AI Gateway that runs entirely on free-tier infrastructure:
 
-The goal is not "toy demo" architecture. The goal is a constrained but real gateway with guardrails, traceability, and predictable behavior under free limits.
+- **Cloudflare Workers** for the edge control plane
+- **Gemini** free API tier for inference
+- **R2** for prompt/response/metric audit logs
+- **Stateless client auth** via Zustand
 
-## 1. Context & problem
+The goal is not a toy demo. The goal is a constrained but real gateway with guardrails, traceability, and predictable behavior under free limits.
 
-Direct client-to-LLM integration creates three common problems:
+---
 
-1. Secret exposure risk (`API key` on client)
-2. No centralized policy enforcement (model allowlist, quotas, abuse limits)
-3. No durable audit trail for prompts and responses
+## 1. Context & Problem
+
+Direct client-to-LLM integration creates three problems that surface fast in production:
+
+1. **Secret exposure risk** — API keys end up in client bundles or browser storage.
+2. **No centralized policy** — no model allowlist, no per-tenant quotas, no abuse limits.
+3. **No durable audit trail** — prompts and responses vanish into provider logs you do not own.
 
 At small scale you can ignore this. In production you cannot.
 
-## 2. Architecture overview
+---
 
-![Zero-Cost AI Gateway Architecture](/blog/ai-gateway-architecture.png)
+## 2. Architecture Overview
 
-Flow:
+```mermaid
+flowchart LR
+    Client([Client])
+    Auth[Auth Worker]
+    Proxy[LLM Proxy]
+    Gemini[(Gemini API)]
+    R2[(R2 Logs)]
 
-`Client -> Auth Worker -> LLM Proxy -> Gemini -> R2`
+    Client -->|Bearer JWT| Auth
+    Auth -->|Validated context| Proxy
+    Proxy -->|Inference| Gemini
+    Proxy -.->|Prompt / Response / Metrics| R2
+```
 
 Responsibilities are intentionally split:
 
-- `Auth Worker`: identity + token validation + authorization context
-- `LLM Proxy Worker`: model mediation + payload normalization + response shaping
-- `R2`: immutable prompt/response logs and lightweight metrics
+- **Auth Worker** — identity, JWT validation, scope checks, tenant context.
+- **LLM Proxy Worker** — model allowlist, payload normalization, response shaping, rate limiting.
+- **R2** — immutable prompt/response logs and lightweight metrics.
 
-## 3. Auth Worker design
+The split matters: Auth is a security boundary, Proxy is a policy boundary, R2 is the durability boundary. Each can fail independently without compromising the others.
 
-Auth Worker validates signed tokens and emits a compact security context for the proxy.
+---
+
+## 3. Auth Worker
+
+The Auth Worker validates signed tokens and emits a compact security context for the proxy.
 
 ```ts
 export async function validateRequest(request: Request, env: Env) {
@@ -73,13 +89,15 @@ export async function validateRequest(request: Request, env: Env) {
 
 Key decisions:
 
-- JWT validation on edge to avoid origin round-trip
-- Scope-based access (`llm:invoke`)
-- Tenant identity forwarded as structured context, not raw token
+- JWT validation runs on the edge — no origin round-trip per request.
+- Scope-based access (`llm:invoke`) keeps token power explicit.
+- Tenant identity is forwarded as **structured context**, not the raw token. The proxy never sees the JWT.
+
+---
 
 ## 4. LLM Proxy Worker
 
-Proxy receives validated context, enforces model policy, forwards to Gemini, and normalizes output.
+The proxy receives validated context, enforces model policy, forwards to Gemini, and normalizes output.
 
 ```ts
 export async function proxyToGemini(input: GatewayInput, env: Env) {
@@ -89,7 +107,7 @@ export async function proxyToGemini(input: GatewayInput, env: Env) {
     return new Response("Model not allowed", { status: 400 })
   }
 
-  const geminiResponse = await fetch(
+  const upstream = await fetchWithRetry(
     `https://generativelanguage.googleapis.com/v1beta/models/${input.model}:generateContent?key=${env.GEMINI_API_KEY}`,
     {
       method: "POST",
@@ -100,26 +118,94 @@ export async function proxyToGemini(input: GatewayInput, env: Env) {
     }
   )
 
-  if (!geminiResponse.ok) {
+  if (upstream.status === 429) {
+    return new Response("Rate limited upstream", {
+      status: 429,
+      headers: { "retry-after": upstream.headers.get("retry-after") ?? "30" },
+    })
+  }
+
+  if (!upstream.ok) {
     return new Response("Upstream LLM error", { status: 502 })
   }
 
-  const payload = await geminiResponse.json<GeminiResponse>()
+  const payload = await upstream.json<GeminiResponse>()
   const text = payload.candidates?.[0]?.content?.parts?.[0]?.text ?? ""
 
   return Response.json({ text, model: input.model })
 }
 ```
 
-Important proxy constraints:
+Important constraints:
 
-- No model passthrough from client without allowlist
-- Standardized response schema for client stability
-- Upstream failure mapped to gateway semantics (`502`, `429`, `503`)
+- No model passthrough from the client — only the allowlist.
+- Standardized response schema: clients depend on `{ text, model }`, not on Gemini-specific fields.
+- Upstream `429` is propagated with `Retry-After` so callers can back off correctly. `5xx` collapses to a clean `502`.
 
-## 5. R2 storage strategy
+### Retrying upstream failures
 
-R2 bucket structure:
+```ts
+async function fetchWithRetry(url: string, init: RequestInit, max = 3): Promise<Response> {
+  let attempt = 0
+  let lastResponse: Response | null = null
+  while (attempt < max) {
+    const res = await fetch(url, init)
+    if (res.ok || res.status < 500) return res
+    lastResponse = res
+    const backoff = Math.min(2_000, 200 * 2 ** attempt) + Math.random() * 100
+    await new Promise((r) => setTimeout(r, backoff))
+    attempt++
+  }
+  return lastResponse ?? new Response("Upstream unavailable", { status: 502 })
+}
+```
+
+Exponential backoff with jitter, capped at 3 attempts. Worker CPU time is bounded on the free tier; longer retries belong in a queue, not in the request path.
+
+---
+
+## 5. Rate Limiting
+
+Cloudflare Workers expose a native rate-limiting binding. Use it for the cheap, IP-based first line of defense:
+
+```jsonc
+// wrangler.jsonc
+{
+  "ratelimits": [
+    {
+      "name": "GLOBAL_RL",
+      "namespace_id": "...",
+      "simple": { "limit": 100, "period": 60 }
+    }
+  ]
+}
+```
+
+```ts
+const { success } = await env.GLOBAL_RL.limit({ key: clientIp(request) })
+if (!success) {
+  return new Response("Too many requests", { status: 429 })
+}
+```
+
+The native binding is per-IP and operates pre-request. For per-tenant quotas, layer a Worker-side counter keyed on `tenantId`:
+
+```ts
+const key = `rl:${ctx.tenantId}:${Math.floor(Date.now() / 60_000)}`
+const count = (await env.RL_KV.get(key)) ?? "0"
+if (Number(count) >= QUOTAS[ctx.plan]) {
+  return new Response("Tenant quota exceeded", { status: 429 })
+}
+await env.RL_KV.put(key, String(Number(count) + 1), { expirationTtl: 120 })
+```
+
+Two layers, two purposes: native binding stops abusive traffic before it costs you CPU; tenant counter enforces fairness inside paid surface.
+
+---
+
+## 6. R2 Audit Storage
+
+Bucket layout:
 
 ```text
 llm-logs/
@@ -128,7 +214,7 @@ llm-logs/
   └── metrics/
 ```
 
-Prompt/response are stored independently to keep write paths simple and queryable.
+Prompt/response are stored independently to keep write paths simple and queryable:
 
 ```ts
 export async function persistR2Log(ctx: GatewayContext, data: GatewayLog, env: Env) {
@@ -149,9 +235,13 @@ export async function persistR2Log(ctx: GatewayContext, data: GatewayLog, env: E
 }
 ```
 
-## 6. Client state sync (Zustand + JSON)
+`Promise.all` lets the three writes run in parallel; on free-tier R2 the cost is dominated by request count, not bytes, so batching small JSON objects per write is intentional. For higher volume, switch to a single combined object per request and an async fan-out queue.
 
-Client keeps auth context in a minimal Zustand store and transmits only structured JSON.
+---
+
+## 7. Client State (Zustand)
+
+The client keeps auth context in a minimal Zustand store and transmits only structured JSON.
 
 ```ts
 import { create } from "zustand"
@@ -173,80 +263,121 @@ export const useSessionStore = create<SessionState>((set) => ({
 }))
 ```
 
-This keeps client state deterministic and proxy contract explicit.
+Client state stays deterministic. The proxy contract stays explicit: the client cannot influence routing or model beyond what the allowlist permits.
 
-## 7. Request lifecycle
+---
 
-![Request Lifecycle on Edge](/blog/ai-gateway-lifecycle.png)
+## 8. Request Lifecycle
 
-Lifecycle stages:
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant A as Auth Worker
+    participant P as LLM Proxy
+    participant G as Gemini
+    participant R as R2
+
+    C->>A: prompt + model + JWT
+    A->>A: verify JWT and scopes
+    A->>P: validated context
+    P->>P: rate limit + model policy
+    P->>G: generateContent
+    G-->>P: content (or 429 / 5xx)
+    P->>R: log prompt / response / metrics
+    P-->>C: normalized response
+```
+
+Six stages, each with a well-defined failure mode:
 
 1. Client submits prompt + model
-2. Auth Worker validates JWT and scopes
-3. Proxy enforces model/tenant policy
-4. Gemini returns generated content
-5. Proxy logs prompt/response/metrics to R2
-6. Client receives normalized response
+2. Auth Worker validates JWT and scopes (`401` / `403`)
+3. Proxy enforces rate limit + model allowlist (`429` / `400`)
+4. Gemini returns content (`502` on 5xx, `429` propagated)
+5. Proxy logs prompt/response/metrics to R2 (best-effort, never blocks the response)
+6. Client receives a normalized response
 
-## 8. Cost model (all free tier)
+---
 
-![Free-Tier Cost Model](/blog/ai-gateway-costs.png)
+## 9. Cost Model (All Free Tier)
 
-This gateway is designed around quota boundaries, not paid capacity.
+```mermaid
+flowchart LR
+    Req([Request volume]) --> W[Workers<br/>invocation + CPU quota]
+    W --> G[Gemini<br/>RPM + token quota]
+    W --> R[(R2<br/>writes + storage quota)]
+```
 
-- Workers: free invocation/runtime quotas
-- Gemini: free model quota limits
-- R2: low-volume object writes + storage within free bucket limits
+Designed around quota boundaries, not paid capacity:
 
-The system is "zero-cost" only while respecting traffic and token ceilings.
+- **Workers** — free invocation/runtime quotas
+- **Gemini** — free model quota limits (RPM and tokens/day)
+- **R2** — low-volume object writes + storage within free bucket limits
 
-## 9. Security model
+The system is "zero-cost" only while respecting traffic and token ceilings. The rate-limit layers above are also a cost-control mechanism, not just a security one.
 
-Security controls applied:
+---
 
-- No LLM API key on client
-- JWT verification at edge
+## 10. Security Model
+
+Controls applied:
+
+- No LLM API key on the client
+- JWT verification at the edge
 - Scope + tenant checks before inference
 - Model allowlist
+- Native rate-limit binding + per-tenant counter
 - Request logging for traceability
-- Structured errors to avoid leaking internals
+- Structured errors that do not leak internals
 
 Recommended additions for hardening:
 
-- Per-tenant rate limiting keys
-- Prompt content filtering layer
-- Signed request IDs for chain correlation
+- Prompt content filtering layer (PII, abuse)
+- Signed request IDs for chain correlation across logs
+- Response sanitation (e.g., strip provider-specific fields)
 
-## 10. Trade-offs
+---
+
+## 11. Trade-offs
 
 What this design optimizes:
 
-- Fast control-plane logic at edge
-- Low operational overhead
+- Fast control-plane logic at the edge
+- Low operational overhead — no servers, no cluster
 - Clean separation of concerns
 
 What it sacrifices:
 
-- Strict free-tier throughput ceiling
-- Limited analytical depth without external OLAP pipeline
-- More complex retry semantics if upstream is flaky
+- A strict free-tier throughput ceiling
+- Limited analytical depth without an external OLAP pipeline
+- More complex retry semantics if the upstream is flaky (mitigated, not eliminated)
 
-## 11. Extensions
+If any of these become real constraints, the gateway scales naturally to paid Workers + a queue + a real warehouse, without a redesign.
+
+---
+
+## 12. Extensions
 
 Natural next steps:
 
-- Add KV/D1 index for searchable request metadata
-- Async queue for non-blocking write pipelines
-- Multi-provider routing (Gemini + fallback provider)
-- Per-tenant policy DSL for model/tool permissions
+- **KV/D1 index** for searchable request metadata
+- **Async queue** for non-blocking write pipelines (Cloudflare Queues)
+- **Multi-provider routing** — Gemini + a fallback provider on `429`/`5xx`
+- **Per-tenant policy DSL** for model and tool permissions
 
-## 12. Production learnings
+---
 
-Main engineering lessons from this pattern:
+## Key Takeaways
 
-1. Edge auth dramatically reduces unsafe client patterns
-2. Free-tier systems need explicit backpressure and quota awareness
-3. Logging prompts/responses separately simplifies incident analysis
-4. A stable proxy contract is more valuable than raw provider features
+- An AI gateway is a security and policy boundary first. Every direct-to-LLM client design eventually has to add one.
+- Split Auth and Proxy into separate Workers. The forwarded context is structured, never the raw token.
+- Use Cloudflare's native rate-limit binding for IP-level abuse, then layer a tenant-scoped counter for fairness.
+- Propagate upstream `429` with `Retry-After`. Collapse upstream `5xx` to a clean `502`.
+- R2 is for durable audit logs, not for hot reads. Move analytical queries to KV/D1 or a warehouse.
+- "Zero-cost" is a quota story, not a capacity story. Design backpressure in from day one.
 
-For backend teams, this architecture is a practical baseline for shipping AI features with minimal cost and controlled risk.
+---
+
+## See Also
+
+- [Designing Resilient Kafka Integrations](/blog/designing-resilient-kafka-integrations) — broader patterns for tolerating upstream failure.
+- [Observability with Prometheus and Micrometer](/blog/observability-with-prometheus-and-micrometer) — what to instrument once the gateway grows past R2 audit logs.
