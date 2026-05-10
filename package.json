@@ -3,9 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "prebuild": "node scripts/generate-sitemap.js",
+    "prebuild": "node scripts/generate-sitemap.js && node scripts/generate-rss.js",
     "dev": "next dev",
     "build": "next build",
+    "postbuild": "node scripts/inject-jsonld.js",
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run"
@@ -20,6 +21,7 @@
     "gray-matter": "^4.0.3",
     "lucide-react": "^0.562.0",
     "mdx": "^0.3.1",
+    "mermaid": "^11.14.0",
     "motion": "^12.23.26",
     "next": "16.1.0",
     "next-mdx-remote": "^5.0.0",
@@ -27,10 +29,12 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "rehype-pretty-code": "^0.14.1",
+    "remark-gfm": "^4.0.1",
     "remark-unwrap-images": "^4.0.1",
     "shiki": "^3.20.0",
     "simple-icons": "^16.2.0",
-    "tailwind-merge": "^3.4.0"
+    "tailwind-merge": "^3.4.0",
+    "unist-util-visit": "^5.1.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
