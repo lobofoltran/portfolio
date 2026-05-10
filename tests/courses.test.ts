@@ -5,7 +5,7 @@ import { courses, getCourseBySlug, withTrackingParams } from "@/lib/courses"
 describe("courses", () => {
   it("resolves golang course route", () => {
     const course = getCourseBySlug("golang-pragmatic-backend")
-    expect(course?.title).toContain("GoLang Pragmático")
+    expect(course?.title).toContain("Pragmatic Go")
   })
 
   it("has required modules", () => {

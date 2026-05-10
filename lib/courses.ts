@@ -1,4 +1,4 @@
-export type CourseStatus = "Planned" | "Recording" | "Published"
+export type CourseStatus = "WIP" | "Recording" | "Published"
 
 export type CourseModule = {
   title: string
@@ -27,20 +27,20 @@ export type Course = {
 export const courses: Course[] = [
   {
     slug: "golang-pragmatic-backend",
-    title: "GoLang Pragmático — Engenharia Backend AI-Driven (Do Zero ao Avançado em 1 Dia)",
-    shortTitle: "GoLang Pragmático — Engenharia Backend AI-Driven",
-    status: "Planned",
+    title: "Pragmatic Go — AI-Driven Backend Engineering (Zero to Advanced in 1 Day)",
+    shortTitle: "Pragmatic Go — AI-Driven Backend Engineering",
+    status: "WIP",
     description:
-      "Formação intensiva para construir backends de produção com Go, focando em APIs, concorrência, arquitetura e práticas modernas com apoio de workflows de IA.",
+      "Intensive training to build production backends in Go, focused on APIs, concurrency, architecture, and modern practices supported by AI workflows.",
     level: "Beginner to Advanced",
     topics: [
       "REST APIs",
       "Clean Architecture",
-      "Concorrência",
+      "Concurrency",
       "SQL",
-      "Workers assíncronos",
+      "Async workers",
       "Docker",
-      "Observabilidade",
+      "Observability",
       "AI workflows",
     ],
     objectives: [
@@ -54,20 +54,20 @@ export const courses: Course[] = [
       "Use AI workflows",
     ],
     methodology: [
-      "Hands-on coding do início ao fim",
-      "Exercícios com feedback pragmático",
-      "Foco em decisões reais de produção",
-      "Estratégias AI-assisted para acelerar entrega",
+      "Hands-on coding from start to finish",
+      "Exercises with pragmatic feedback",
+      "Focus on real production decisions",
+      "AI-assisted strategies to accelerate delivery",
     ],
     modules: [
-      { title: "Foundations", summary: "Setup de ambiente, fundamentos de linguagem e padrão de projeto base." },
-      { title: "Concurrency", summary: "Goroutines, channels, coordenação e controle de concorrência." },
-      { title: "APIs", summary: "Design e implementação de APIs REST com validação e contratos." },
-      { title: "Persistence", summary: "Integração SQL, migrations e acesso a dados robusto." },
-      { title: "Architecture", summary: "Clean Architecture e separação clara de camadas." },
-      { title: "Observability", summary: "Métricas, logs, health checks e troubleshooting." },
-      { title: "Docker", summary: "Containerização e execução reprodutível para deploy." },
-      { title: "Final Project", summary: "Sistema backend completo com cenários reais de produção." },
+      { title: "Foundations", summary: "Environment setup, language fundamentals, and baseline project pattern." },
+      { title: "Concurrency", summary: "Goroutines, channels, coordination, and concurrency control." },
+      { title: "APIs", summary: "Design and implementation of REST APIs with validation and contracts." },
+      { title: "Persistence", summary: "SQL integration, migrations, and robust data access." },
+      { title: "Architecture", summary: "Clean Architecture and clear separation of layers." },
+      { title: "Observability", summary: "Metrics, logs, health checks, and troubleshooting." },
+      { title: "Docker", summary: "Containerization and reproducible execution for deployment." },
+      { title: "Final Project", summary: "Complete backend system with real production scenarios." },
     ],
     project: [
       "CRUD",
@@ -79,13 +79,13 @@ export const courses: Course[] = [
       "Logs",
     ],
     outcomes: [
-      "Entregar um backend de produção completo em Go",
-      "Dominar padrões pragmáticos de arquitetura",
-      "Operar serviços com foco em confiabilidade",
-      "Aplicar workflows AI-driven com segurança técnica",
+      "Ship a complete production backend in Go",
+      "Master pragmatic architecture patterns",
+      "Operate services with a focus on reliability",
+      "Apply AI-driven workflows with technical confidence",
     ],
     tagline:
-      "Aprenda Go como engenheiros de sistemas críticos aprendem — rápido, pragmático e orientado à produção.",
+      "Learn Go the way engineers of critical systems learn — fast, pragmatic, and production-oriented.",
     ogImage: "/og.png",
   },
 ]
