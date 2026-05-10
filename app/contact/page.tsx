@@ -14,11 +14,17 @@ export const metadata: Metadata = {
 
 export default function ContactPage() {
   return (
-    <main className="mx-auto max-w-5xl px-6 py-20">
-      <header className="mb-10 space-y-2 text-center">
+    <main className="mx-auto max-w-3xl px-6 py-16">
+      <header className="mb-10 space-y-2">
         <h1 className="text-3xl font-semibold tracking-tight">Contact</h1>
+        <p className="text-muted-foreground">
+          Best for backend and distributed systems collaborations. I usually reply within 1–2 business days.
+        </p>
       </header>
-      <EmailCard />
+
+      <section className="space-y-6">
+        <EmailCard />
+      </section>
     </main>
   )
 }
