@@ -18,9 +18,9 @@ export function Header() {
 
   const navItems = [
     { href: "/", label: "Home" },
+    { href: "/contact", label: "Contact" },
     { href: "/courses", label: "Courses" },
     { href: "/resume", label: "Resume" },
-    { href: "/contact", label: "Contact" },
     { href: "/blog", label: "Blog" },
   ]
 
@@ -30,8 +30,8 @@ export function Header() {
   }
 
   return (
-    <header className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur">
-      <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-6">
+    <header className="shrink-0 border-b bg-background">
+      <div className="mx-auto flex h-16 max-w-4xl items-center justify-between px-6">
         <Link href="/" className="select-none text-sm font-mono text-foreground">
           <span>gustavo@</span>
           <span className="font-medium">pop-os</span>
@@ -48,7 +48,7 @@ export function Header() {
               className={cn(
                 "px-3",
                 isActive(pathname, href)
-                  ? "bg-primary/10 font-medium text-primary"
+                  ? "bg-primary/10 font-medium text-primary hover:bg-primary/10 hover:text-primary"
                   : "text-muted-foreground hover:text-primary"
               )}
             >
@@ -84,7 +84,11 @@ export function Header() {
                   key={href}
                   asChild
                   variant="ghost"
-                  className={cn("justify-start", isActive(pathname, href) && "bg-primary/10 font-medium")}
+                  className={cn(
+                    "justify-start",
+                    isActive(pathname, href) &&
+                      "bg-primary/10 font-medium text-primary hover:bg-primary/10 hover:text-primary"
+                  )}
                 >
                   <Link href={href}>{label}</Link>
                 </Button>

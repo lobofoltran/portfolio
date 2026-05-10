@@ -15,16 +15,17 @@ export default function BlogPage() {
   const allCategories = getAllCategories(posts)
 
   return (
-    <main className="mx-auto max-w-4xl px-6 pt-5 pb-16">
-      <header className="mb-10 space-y-4">
+    <main className="mx-auto max-w-3xl px-6 py-16">
+      <header className="mb-10 space-y-2">
         <h1 className="text-3xl font-semibold tracking-tight">Blog</h1>
         <p className="text-muted-foreground">
           Writing about software engineering, architecture, and lessons learned from real systems.
         </p>
-
       </header>
 
-      <BlogList posts={posts} categories={allCategories} />
+      <section className="space-y-6">
+        <BlogList posts={posts} categories={allCategories} />
+      </section>
     </main>
   )
 }

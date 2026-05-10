@@ -1,5 +1,7 @@
 import { Metadata } from "next"
+import Link from "next/link"
 import { notFound } from "next/navigation"
+import { ChevronLeft } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -38,7 +40,15 @@ export default async function CourseDetailsPage({ params }: Props) {
   if (!course) notFound()
 
   return (
-    <main className="mx-auto max-w-4xl px-6 py-16">
+    <main className="mx-auto max-w-3xl px-6 py-16">
+      <Link
+        href="/courses"
+        className="mb-8 inline-flex items-center text-sm text-muted-foreground hover:text-foreground"
+      >
+        <ChevronLeft className="mr-1 size-4" />
+        Back to courses
+      </Link>
+
       <section className="space-y-6">
         <div className="space-y-3">
           <p className="text-sm text-muted-foreground">Course</p>

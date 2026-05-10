@@ -28,13 +28,13 @@ export default function HomePage() {
               <Link href="/contact">Contact</Link>
             </Button>
             <Button asChild variant="outline">
+              <Link href="/courses">Courses</Link>
+            </Button>
+            <Button asChild variant="outline">
               <Link href="/resume">Resume</Link>
             </Button>
             <Button asChild variant="outline">
               <Link href="/blog">Blog</Link>
-            </Button>
-            <Button asChild variant="outline">
-              <Link href="/courses">Courses</Link>
             </Button>
           </div>
         </div>
