@@ -7,9 +7,9 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 
 export const metadata: Metadata = {
-  title: "Resume — Gustavo Lobo | Senior Backend & Distributed Systems Engineer",
+  title: "Resume — Gustavo Lobo | Backend & Distributed Systems Engineer",
   description:
-    "Senior backend engineer with experience in Java, distributed systems, and event-driven architectures. Focused on reliability, scalability, and operating mission-critical systems in production.",
+    "Software engineer focused on backend, distributed systems, and event-driven architectures. Hands-on experience designing and operating mission-critical, high-throughput systems in production.",
 }
 
 type Experience = {
@@ -23,44 +23,62 @@ type Experience = {
 
 const experiences: Experience[] = [
   {
-    role: "Software Engineer — Research & Development",
-    company: "Fiscal Technology and Automation",
-    period: "Jan 2025 — Present",
+    role: "Mid Software Engineer",
+    company: "EBANX",
+    period: "Feb 2026 — Present",
     context:
-      "Nationwide free-flow toll platform operating 24/7 with high transaction volume and strict traceability requirements.",
+      "Distributed financial services across the Pix and Open Finance ecosystems, integrated with BACEN and Núclea infrastructures (SPI, DICT, STR, SITRAF, SLC, SILOC) under 99.999% SLA.",
     responsibilities: [
-      "Owned backend service lifecycle from architecture to production support.",
-      "Built event-driven Java services integrated with Kafka.",
-      "Operated PostgreSQL HA (Patroni), replication, and partitioning in production.",
-      "Maintained on-prem Kubernetes workloads with CI/CD and observability.",
+      "Evolve high-throughput Java/Spring Boot services for Pix transactional flows on AWS.",
+      "Translate Pix and SPB business rules into DDD-aligned domain models alongside product.",
+      "Investigate concurrency and eventual consistency issues with Hibernate L2 cache in multi-instance environments.",
+      "Reduced p99 latency on transactional endpoints from ~40 ms to ~20 ms.",
+      "Drive observability with Datadog APM, distributed tracing, Rollbar, and Kibana.",
+    ],
+    stack: ["Java", "Spring Boot", "AWS", "PostgreSQL", "DDD", "Datadog"],
+  },
+  {
+    role: "Mid Software Engineer — R&D",
+    company: "Fiscaltech",
+    period: "Jan 2025 — Feb 2026",
+    context:
+      "Free-flow electronic toll platform — distributed, high-throughput, mission-critical systems with 99.999% SLA, strict consistency, and full auditability.",
+    responsibilities: [
+      "Owned event-driven Java/Spring Boot services on Kafka end-to-end, from design to production.",
+      "Designed the transponder reading system (SLT) integrated with ARTESP's key management entity (EGC).",
+      "Built distributed pipeline syncing TAG identifiers with toll operators via JMS and PostgreSQL logical replication to edge nodes.",
+      "Operated on-prem Kubernetes, PostgreSQL HA with Patroni, Partman partitioning, GitLab CI/CD, and Ansible across 30+ hosts.",
+      "Implemented centralized observability with Prometheus, Grafana, Loki, and Alertmanager.",
+      "Mentored engineers and led code reviews to raise team engineering standards.",
     ],
     stack: ["Java", "Spring Boot", "Kafka", "PostgreSQL", "Kubernetes", "DDD", "Event-Driven"],
   },
   {
-    role: "Software Engineer — ERP Protheus",
-    company: "Fiscal Technology and Automation",
+    role: "Software Engineer — ERP & Business",
+    company: "Fiscaltech",
     period: "May 2024 — Jan 2025",
-    context:
-      "ERP and legacy integration layer for internal business operations across multiple domains.",
+    context: "Stabilization and evolution of TOTVS Protheus across multiple business domains.",
     responsibilities: [
-      "Developed integrations and backend routines aligned with Protheus architecture.",
-      "Implemented REST APIs and modernization initiatives around legacy systems.",
-      "Delivered a centralized web platform for dashboards and strategic workflows.",
+      "Led structural data and routine fixes after failed migrations to restore ERP consistency.",
+      "Built customizations, routines, and REST APIs in AdvPL/TLPP following TOTVS standards.",
+      "Delivered a decoupled Next.js web layer with operational dashboards and internal tooling.",
+      "Set up CI/CD pipelines with GitHub Actions and Jenkins, including Protheus build artifacts.",
     ],
-    stack: ["TOTVS Protheus", "Next.js", "REST APIs", "Legacy Integration"],
+    stack: ["TOTVS Protheus", "AdvPL/TLPP", "Next.js", "Jenkins"],
   },
   {
     role: "Software Engineer",
-    company: "WHB AUTOMOTIVE S.A",
+    company: "WHB Automotive",
     period: "Apr 2022 — May 2024",
     context:
-      "Industrial and corporate software supporting HR, manufacturing, quality, and operations.",
+      "Corporate and industrial software for HR, Production, Quality, and Workplace Safety in a multi-stack environment.",
     responsibilities: [
-      "Built internal applications and APIs across multiple operational domains.",
-      "Delivered a Flutter mobile HR app used by 2,000+ employees.",
-      "Created real-time industrial KPI dashboards and refactored legacy applications.",
+      "Built web apps and internal APIs across PHP/Laravel, Node.js, Angular, and Vue.js.",
+      "Designed real-time industrial KPI pipeline (OEE, MTTR, MTBF) from collectors to shop-floor dashboards.",
+      "Delivered a Flutter (BLoC) HR mobile app used by 2,000+ employees in production.",
+      "Built RPA automations with Electron.js and Puppeteer, eliminating manual HR routines across 20+ legacy systems.",
     ],
-    stack: ["Industrial Systems", "Flutter", "Dashboards", "Legacy Modernization"],
+    stack: ["PHP", "Laravel", "TypeScript", "Vue.js", "Flutter", "MySQL", "SQL Server"],
   },
 ]
 
@@ -70,7 +88,7 @@ export default function ResumePage() {
       <div className="px-6">
         <header className="flex items-center gap-4">
           <div className="relative h-14 w-14 overflow-hidden rounded-md border">
-            <Image src="/me.jpeg" alt="Gustavo Lobo" fill priority className="object-cover" />
+            <Image src="/me.jpeg" alt="Gustavo Lobo" fill priority className="object-cover object-top" />
           </div>
 
           <div className="space-y-1">
@@ -84,7 +102,7 @@ export default function ResumePage() {
         <section className="space-y-3">
           <h2 className="text-lg font-semibold">Profile</h2>
           <p className="text-muted-foreground">
-            Software Engineer with hands-on experience designing, operating, and evolving mission-critical and highly transactional systems in production. Strong focus on backend engineering, distributed systems, and event-driven architectures.
+            Software engineer building and operating mission-critical, high-throughput backend systems in production. Focused on distributed systems, event-driven architectures, and Domain-Driven Design — applying observability, automation, and engineering rigor to ship resilient, scalable, and maintainable software.
           </p>
         </section>
 
@@ -153,6 +171,7 @@ export default function ResumePage() {
                   <Badge variant="blue">Spring Boot</Badge>
                   <Badge variant="blue">Go</Badge>
                   <Badge variant="blue">Node.js</Badge>
+                  <Badge variant="blue">TypeScript</Badge>
                   <Badge variant="blue">Python</Badge>
                 </div>
               </CardContent>
