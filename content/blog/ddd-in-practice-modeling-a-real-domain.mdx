@@ -12,8 +12,6 @@ Domain-Driven Design only proves its value when the model actively **prevents in
 
 This article walks through a small but representative `Order` domain and shows how Aggregates, Value Objects, and Repositories combine to make invariants enforceable by construction.
 
----
-
 ## The Domain Rules
 
 Consider a simplified `Order` domain:
@@ -24,8 +22,6 @@ Consider a simplified `Order` domain:
 - Item prices are non-negative
 
 These rules look trivial, but they are routinely implemented incorrectly. The trap is not the logic — it is *where* the logic lives.
-
----
 
 ## The Anemic Model (Anti-Pattern)
 
@@ -58,8 +54,6 @@ Problems:
 - Any caller can put the object into an inconsistent state
 
 The model does not protect itself. Every new use case adds another service-layer check, and the rules drift apart.
-
----
 
 ## Modeling with DDD
 
@@ -102,8 +96,6 @@ public class Order {
 
 State is private. Mutation is intentional and validated. The rules live where they are enforced.
 
----
-
 ## Value Objects: Removing Primitive Obsession
 
 `String status` and `BigDecimal total` are not domain concepts — they are primitives that *carry* domain concepts. DDD pushes them into Value Objects.
@@ -138,8 +130,6 @@ What this buys you:
 
 This is the difference between **modeling a value** and **storing a value**.
 
----
-
 ## Repositories: The Persistence Boundary
 
 Aggregates do not call the database. Repositories do.
@@ -169,8 +159,6 @@ public void confirmOrder(OrderId id) {
 
 No business rules in the service. No mutation outside the Aggregate.
 
----
-
 ## What Breaks When You Bypass the Model
 
 The pressure to bypass the Aggregate usually comes from three places:
@@ -180,8 +168,6 @@ The pressure to bypass the Aggregate usually comes from three places:
 - **Cross-aggregate consistency.** Resist temptation to merge Aggregates. Use domain events and eventual consistency across them.
 
 Every shortcut around the Aggregate is borrowed time. The model only stays defensive if it is the only path in.
-
----
 
 ## Why This Matters in Real Systems
 
@@ -193,8 +179,6 @@ In real systems:
 
 A model that does not protect invariants will eventually fail under change. DDD shifts complexity from services into the model — where it can be tested in isolation, evolved with intent, and trusted at the boundary.
 
----
-
 ## Key Takeaways
 
 - Invariants belong inside the Aggregate. If a service has to check before calling the model, the model is incomplete.
@@ -202,8 +186,6 @@ A model that does not protect invariants will eventually fail under change. DDD 
 - Repositories are the only persistence boundary. Aggregates know nothing about databases.
 - Application services orchestrate; they do not enforce.
 - Resist bulk-update shortcuts. They erode the only contract that keeps the model trustworthy.
-
----
 
 ## See Also
 

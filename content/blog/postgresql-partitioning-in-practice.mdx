@@ -14,8 +14,6 @@ PostgreSQL partitioning is often presented as a silver bullet for scalability. I
 
 This article focuses on **when PostgreSQL partitioning is worth the complexity**, the precise mechanics that make it work, and the queries that silently break it.
 
----
-
 ## What Partitioning Actually Is
 
 Partitioning splits a logical table into multiple physical tables (partitions), keyed by some column:
@@ -32,8 +30,6 @@ PostgreSQL provides three forms of declarative partitioning:
 - **Range** — bounds are inclusive at the lower end, exclusive at the upper end. Best for time series.
 - **List** — explicit assignment of values to partitions. Best for tenant or region.
 - **Hash** — by `mod(hash(key), N)`. Best for even distribution where no natural range exists.
-
----
 
 ## The Problems Partitioning Actually Solves
 
@@ -72,8 +68,6 @@ DROP TABLE events_2024_01;
 
 This is dramatically faster than `DELETE FROM events WHERE created_at < ...`, which generates row-level deletes, bloat, and WAL traffic.
 
----
-
 ## When Partitioning Does NOT Help
 
 Partitioning adds overhead. It is harmful when:
@@ -84,8 +78,6 @@ Partitioning adds overhead. It is harmful when:
 - Index maintenance cost outweighs the access benefit
 
 Partitioning does not fix bad indexes, missing filters, or poor query plans. It amplifies them.
-
----
 
 ## Partition Pruning vs Constraint Exclusion
 
@@ -101,8 +93,6 @@ These are routinely confused. They are not the same.
 Partition pruning is what makes modern PostgreSQL partitioning fast. Constraint exclusion is the older mechanism for inheritance-based partitioning, which you generally should not be using for new tables.
 
 For declarative partitions, pruning happens automatically — provided the planner can determine which partitions are relevant from the `WHERE` clause.
-
----
 
 ## Strategies in Code
 
@@ -140,8 +130,6 @@ CREATE TABLE sessions_p0 PARTITION OF sessions FOR VALUES WITH (MODULUS 8, REMAI
 
 Hash distributes load evenly but offers nothing for retention — you cannot drop "January" because rows are spread across all partitions.
 
----
-
 ## Indexing Partitioned Tables
 
 Indexes are **per partition**, not global. That means:
@@ -156,8 +144,6 @@ Two rules that matter:
 - A `PRIMARY KEY` or `UNIQUE` constraint must include the partition key, otherwise PostgreSQL cannot enforce uniqueness across partitions.
 
 Keep indexes minimal. The cost compounds: 12 monthly partitions × 4 indexes = 48 indexes to maintain.
-
----
 
 ## Queries That Silently Bypass Pruning
 
@@ -193,16 +179,12 @@ WHERE created_at >= now() - interval '1 day';
 
 If the plan lists every partition, pruning failed. The plan should mention only the relevant partitions, with the rest absent.
 
----
-
 ## Operational Considerations
 
 - **Partition creation must be automated.** A range-partitioned table without a `2025-04` partition rejects inserts on April 1st. Schedule a job to create the next N partitions ahead of time, or use an extension like `pg_partman`.
 - **Schema changes affect every partition.** `ALTER TABLE events ADD COLUMN ...` propagates, but DDL on huge tables can lock partitions; do it during low-traffic windows.
 - **`VACUUM` is per partition.** Tune `autovacuum` per partition for high-churn tables.
 - **Backups and replication work transparently** — but logical replication on partitioned tables has subtle rules; test it.
-
----
 
 ## Partitioning vs Sharding
 
@@ -217,8 +199,6 @@ These solve different problems.
 
 Partitioning is often a **step before sharding**, not a replacement. Get partitioning right first; you may never need to shard.
 
----
-
 ## Key Takeaways
 
 - Partition only when you can name a concrete reason: very large table, time-based access, or cheap retention. Otherwise it is overhead.
@@ -227,8 +207,6 @@ Partitioning is often a **step before sharding**, not a replacement. Get partiti
 - Define indexes on the parent table; keep them minimal — the cost compounds across partitions.
 - Automate partition creation. A missing future partition is a write outage.
 - Verify pruning with `EXPLAIN`. If every partition is in the plan, the pattern is not paying off.
-
----
 
 ## See Also
 

@@ -14,8 +14,6 @@ Horizontal scalability is often described as *adding more instances*. In practic
 
 This article focuses on the architectural decisions that make or break multi-instance deployments — the things that look fine on one node and break on two.
 
----
-
 ## Topology at a Glance
 
 ```mermaid
@@ -44,8 +42,6 @@ flowchart LR
 
 State lives behind the instances, not inside them. Instances are interchangeable.
 
----
-
 ## The Illusion of Scalability
 
 Many systems appear scalable in development:
@@ -63,8 +59,6 @@ Then a second instance is deployed. Suddenly:
 - Caches diverge
 
 The system was never horizontally scalable — it was merely *replicable*. Replication is a deployment trick; scalability is an architectural property.
-
----
 
 ## Statelessness Is the First Requirement
 
@@ -88,8 +82,6 @@ State lives in:
 
 Instances become interchangeable: any request can go to any instance and produce the same outcome.
 
----
-
 ## Load Balancing Strategies
 
 The way requests are distributed shapes which problems show up:
@@ -100,8 +92,6 @@ The way requests are distributed shapes which problems show up:
 - **Least-connections / least-latency** — adaptive; helps when request cost varies widely (e.g., AI inference).
 
 If you reach for sticky sessions to make scaling work, the bug is upstream — something assumed local state. Fix that instead.
-
----
 
 ## Idempotency Everywhere
 
@@ -124,8 +114,6 @@ processedRequests.save(requestId, result);
 
 Without it: side effects multiply, data corruption follows, recovery becomes manual. With it, retries become safe and deployment becomes a non-event.
 
----
-
 ## Concurrency Is the Default State
 
 Horizontal scaling means concurrent execution by default. Design assuming multiple writers, multiple consumers, and out-of-order execution.
@@ -140,8 +128,6 @@ WHERE id = :id
 ```
 
 If two instances race, the loser's update affects 0 rows and the application reacts accordingly. No locks, no coordination, no surprise overwrites.
-
----
 
 ## Single-Writer Tasks: Leader Election
 
@@ -163,8 +149,6 @@ Three reasonable mechanisms:
 
 Pick the one with the smallest operational surface that holds your guarantees. Resist introducing a coordination service for a single use case.
 
----
-
 ## Cache Coherency
 
 Caches in multi-instance systems are eventually consistent by default. Two strategies:
@@ -173,8 +157,6 @@ Caches in multi-instance systems are eventually consistent by default. Two strat
 - **Invalidation via events** — write side publishes a "cache key X is stale" event; readers invalidate locally on receipt. Lower staleness, higher complexity.
 
 Avoid trying to keep caches strictly synchronized across instances. That is a distributed consensus problem in disguise; if you need it, the data probably should not be cached.
-
----
 
 ## Event-Driven Scaling
 
@@ -185,8 +167,6 @@ Event-driven architectures naturally support horizontal scaling:
 - Load is distributed by partitions
 
 Kafka consumer groups enforce one consumer per partition with automatic rebalancing. Scaling out is "increase partitions and consumers"; scaling in is the reverse. Idempotency on the consumer (see above) is what makes rebalances safe.
-
----
 
 ## Observability Across Instances
 
@@ -203,8 +183,6 @@ Correlation IDs propagated through requests and events are what makes a multi-in
 
 For the underlying stack, see [Centralized Observability with Prometheus, Loki, and Promtail](/blog/centralized-observability-with-prometheus-loki-promtail).
 
----
-
 ## Failure Becomes Normal
 
 In horizontally scaled systems:
@@ -215,8 +193,6 @@ In horizontally scaled systems:
 
 This must be expected. Resilient systems restart cleanly, recover state externally, and resume processing safely. If a single restart causes lasting damage, the system is not actually horizontally scalable.
 
----
-
 ## Key Takeaways
 
 - Horizontal scalability is a design property — statelessness, idempotency, concurrency-tolerance — not an infrastructure feature.
@@ -225,8 +201,6 @@ This must be expected. Resilient systems restart cleanly, recover state external
 - Use the database as the concurrency arbiter via conditional updates and advisory locks.
 - Caches are eventually consistent. Use TTLs first; invalidate via events only when staleness budget is tight.
 - Observability with correlation IDs is what makes multi-instance debugging possible.
-
----
 
 ## See Also
 

@@ -14,8 +14,6 @@ In distributed systems, the hardest problem is not scalability or performance. I
 
 This article walks through a production-grade implementation of the Outbox Pattern on PostgreSQL, focused on the operational concerns that decide whether it works under load.
 
----
-
 ## Outbox Flow
 
 ```mermaid
@@ -35,8 +33,6 @@ flowchart LR
 
 The atomic boundary is the DB transaction. The async boundary is the worker. The idempotency boundary is the consumer.
 
----
-
 ## The Core Problem: Dual Writes
 
 A common integration flow:
@@ -55,8 +51,6 @@ It looks simple — until something fails.
 
 This is the **dual-write problem**. Without special handling it leads to lost events, ghost events, and divergence between systems.
 
----
-
 ## Why Distributed Transactions Are Not the Answer
 
 Two-phase commit and XA appear attractive in theory. In practice:
@@ -68,8 +62,6 @@ Two-phase commit and XA appear attractive in theory. In practice:
 
 Modern systems avoid distributed transactions and prefer **local atomicity plus eventual consistency**.
 
----
-
 ## The Outbox Pattern, Briefly
 
 Replace the dual write with a single atomic operation:
@@ -77,8 +69,6 @@ Replace the dual write with a single atomic operation:
 > **Persist business data and the integration event in the same database transaction.**
 
 A separate process publishes events asynchronously. Kafka becomes async, never transactional.
-
----
 
 ## Why PostgreSQL Fits
 
@@ -88,8 +78,6 @@ A separate process publishes events asynchronously. Kafka becomes async, never t
 - `LISTEN` / `NOTIFY` for low-latency wakeups without polling
 - `SELECT ... FOR UPDATE SKIP LOCKED` for safe concurrent worker fan-out
 - Mature operational tooling (pgBackRest, logical replication, autovacuum)
-
----
 
 ## Schema
 
@@ -112,8 +100,6 @@ CREATE INDEX idx_outbox_unpublished
 
 The partial index is the trick that keeps the worker query cheap as the table grows. Once a row is published, it leaves the index entirely.
 
----
-
 ## Atomic Write
 
 ```java
@@ -134,8 +120,6 @@ public void createOrder(CreateOrderCommand command) {
 ```
 
 If the transaction commits, both rows exist. If it rolls back, neither does. **No gap.**
-
----
 
 ## Polling vs LISTEN/NOTIFY
 
@@ -184,16 +168,12 @@ FOR UPDATE SKIP LOCKED;
 
 This gives near-linear scalability up to a sane number of workers without coordination.
 
----
-
 ## What Breaks: Realistic Failure Modes
 
 - **Worker crashes between `producer.send()` and `markAsPublished()`.** On restart, the row is still unpublished and gets re-sent. The consumer **must** dedup by `event.id`.
 - **Worker is partitioned from Kafka.** The outbox grows. This is by design — alert on backlog size, not on individual failures.
 - **Slow Kafka leader.** `producer.send().get()` blocks. Use a bounded thread pool or async sends with a callback that marks `published_at` only on success.
 - **Outbox table grows unbounded.** `published_at IS NOT NULL` rows are dead weight. Either delete them after a retention window, or move them to an `outbox_events_archive` table partitioned by month.
-
----
 
 ## Idempotency on the Consumer
 
@@ -215,8 +195,6 @@ Two operational notes:
 - `processed_events` needs its own retention (e.g., 30 days, partitioned by date) or it becomes the new bottleneck.
 - Both the side-effect and the dedup write must be in the same transaction. If you write the dedup record outside the transaction, a crash between them re-runs the side effect.
 
----
-
 ## Operational Checklist
 
 - Backlog metric: `outbox_events_pending` exposed as a gauge.
@@ -227,8 +205,6 @@ Two operational notes:
 
 For the broader resilience picture see [Designing Resilient Kafka Integrations](/blog/designing-resilient-kafka-integrations).
 
----
-
 ## Key Takeaways
 
 - The outbox pattern is not about Kafka — it is about respecting transactional boundaries.
@@ -237,8 +213,6 @@ For the broader resilience picture see [Designing Resilient Kafka Integrations](
 - Use `SELECT ... FOR UPDATE SKIP LOCKED` to scale workers without coordination.
 - Consumers must dedup. Idempotence on the producer covers a session; the outbox replay can cross sessions.
 - Always retain or archive published rows; a perpetually growing outbox eventually starves the partial index.
-
----
 
 ## See Also
 

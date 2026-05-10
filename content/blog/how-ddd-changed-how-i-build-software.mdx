@@ -18,8 +18,6 @@ That is where Domain-Driven Design (DDD) completely changed how I build software
 
 > This post is the conceptual companion to [DDD in Practice: Modeling a Real Domain with Code](/blog/ddd-in-practice-modeling-a-real-domain), which shows the same shift in concrete code.
 
----
-
 ## Before DDD: Technically Correct, Conceptually Fragile
 
 Before applying DDD consciously, my systems usually had:
@@ -36,8 +34,6 @@ Every new rule introduced unexpected side effects. The code was "correct" by eve
 
 The problem was not implementation. It was understanding.
 
----
-
 ## The Domain Becomes the Center
 
 DDD introduced a fundamental shift:
@@ -52,15 +48,11 @@ Instead of starting with controllers, repositories, and DTOs, I started with:
 
 Code stopped being just an implementation detail and became a direct expression of business rules. The architecture stopped being something I imposed on the codebase and became a consequence of how the domain wanted to be modeled.
 
----
-
 ## Ubiquitous Language
 
 Business, code, and documentation began speaking the same language.
 
 A "confirmed order" meant exactly one thing in the meeting room, in the code, and in the database. Before DDD, those were three subtly different concepts that drifted apart over time. After, the friction between business and engineering dropped sharply — not because of better process, but because of fewer translations.
-
----
 
 ## Aggregates and Invariants
 
@@ -70,8 +62,6 @@ Invalid states became impossible instead of "unlikely". The model itself became 
 
 This is the part of DDD that pays for itself the fastest. Once invariants live inside the model, the cost of new use cases drops, because the model already enforces what cannot happen.
 
----
-
 ## Bounded Contexts
 
 DDD also taught me that there is no single correct model for an entire system. There are correct models *within clear boundaries*.
@@ -80,8 +70,6 @@ In one context, an `Order` is a billing artifact. In another, it is a fulfillmen
 
 This insight is essential for distributed systems and large codebases — and it is what most "DDD-flavored" code skips.
 
----
-
 ## Key Takeaways
 
 - The hardest part of complex software is understanding the domain, not coding it.
@@ -89,8 +77,6 @@ This insight is essential for distributed systems and large codebases — and it
 - Ubiquitous Language is what removes the most expensive bug class: the silent disagreement between business and code.
 - Bounded Contexts make heterogeneous systems tractable. Resist the urge to unify models prematurely.
 - Tests and clean layers are necessary but not sufficient. A model that does not protect itself will fail under change.
-
----
 
 ## See Also
 

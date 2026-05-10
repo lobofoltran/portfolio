@@ -14,8 +14,6 @@ As systems scale horizontally, observability stops being a local concern. Logs, 
 
 This article describes a centralized observability stack using Prometheus, Loki, and Promtail, focused on the operational decisions that determine whether it survives production rather than tooling hype.
 
----
-
 ## Architecture at a Glance
 
 ```mermaid
@@ -39,8 +37,6 @@ flowchart LR
 
 Three concerns, three components, one query surface (Grafana). The split matters: each tier has its own failure mode and its own scaling axis.
 
----
-
 ## Per-Instance Observability Does Not Scale
 
 In single-host systems:
@@ -56,8 +52,6 @@ In distributed systems:
 - Failures span multiple services and require correlation by time and identifier
 
 Debugging by jumping into individual containers becomes guesswork. Centralization is not optional — it is the only way to keep mean-time-to-diagnosis bounded.
-
----
 
 ## Metrics vs Logs: Different Signals, Different Roles
 
@@ -75,8 +69,6 @@ Logs answer:
 
 Both are necessary, but the design rule is to **alert on metrics, debug with logs**. Logs are too high-volume and too unstructured to alert on directly without amplifying noise.
 
----
-
 ## Prometheus as the Metrics Aggregator
 
 Prometheus collects metrics from all instances and stores them as time series.
@@ -89,8 +81,6 @@ Key properties:
 
 Prometheus provides **system-level visibility** with predictable storage cost — as long as cardinality is controlled (more on that below).
 
----
-
 ## Loki: Logs Designed for Scale
 
 Loki takes a different approach to logs:
@@ -100,8 +90,6 @@ Loki takes a different approach to logs:
 - Queries with LogQL, a syntax intentionally similar to PromQL
 
 This makes Loki cheap to operate at terabytes of logs, but it pays for that cheapness in query cost: filtering by content (`|=` or regex) requires scanning chunks. Design queries to **anchor on labels first**, then refine by content.
-
----
 
 ## Promtail: Shipping Logs to Loki
 
@@ -131,8 +119,6 @@ scrape_configs:
 
 The `positions.yaml` file tracks read offsets per file. If Promtail crashes, it resumes from the last acknowledged offset on restart. This is the entire durability story — there is no on-disk queue beyond the OS file cache.
 
----
-
 ## Label Strategy: The One Decision That Decides Cost
 
 Labels in Prometheus and Loki define a **time series per unique combination of values**. High cardinality is the single most common cause of observability stack failure.
@@ -150,8 +136,6 @@ Never use labels for:
 
 A practical guideline: **keep total active series per metric under ~10k**, and total active series per Prometheus instance under a few million. Loki has similar limits per stream. Whenever you are tempted to add a high-cardinality label, ask whether the value belongs in the **log line** (Loki content) or as an **exemplar** linked to a histogram bucket (Prometheus exemplars), not as a label.
 
----
-
 ## Correlating Metrics and Logs
 
 Centralization becomes powerful when metrics and logs share the same identity space.
@@ -165,8 +149,6 @@ A reliable correlation flow:
 
 The shared label set (`service`, `env`) is what makes this work. Without consistent labels across the two systems, correlation is manual and slow.
 
----
-
 ## Multi-Environment Observability
 
 Production observability must scale across regions, data centers, and clusters. The conventional set:
@@ -176,8 +158,6 @@ Production observability must scale across regions, data centers, and clusters. 
 - `cluster` — k8s cluster name or equivalent
 
 These three labels cover almost every operational slicing question without exploding cardinality, because each has bounded values.
-
----
 
 ## What Breaks in Production
 
@@ -189,8 +169,6 @@ Treat the observability stack as a system with failure modes of its own.
 - **Promtail can't reach Loki.** Without a persistent queue, sustained Loki downtime causes log loss once file rotation happens. Mitigation: log rotation policies aligned with worst-case Loki recovery time.
 
 Observability infrastructure must tolerate failure itself. Otherwise it becomes the loudest pager during incidents that have nothing to do with it.
-
----
 
 ## Dashboards and Alerts as Interfaces
 
@@ -204,8 +182,6 @@ Good dashboards:
 
 Alerts should trigger investigation, not panic. The bar: every alert must have a runbook link, an owner, and a clear remediation. If an alert lacks any of those, it is noise.
 
----
-
 ## Key Takeaways
 
 - Centralization solves correlation; it does not eliminate cost. Cardinality discipline is what keeps the bill bounded.
@@ -213,8 +189,6 @@ Alerts should trigger investigation, not panic. The bar: every alert must have a
 - Treat Promtail's `positions.yaml` as the durability boundary — beyond it, sustained Loki downtime can drop logs.
 - Dashboards should optimize for incident readability, not exploration.
 - Every alert needs a runbook, an owner, and a remediation. Otherwise it becomes pager noise.
-
----
 
 ## See Also
 

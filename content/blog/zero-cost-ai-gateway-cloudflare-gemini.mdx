@@ -17,8 +17,6 @@ This post describes a production-style AI Gateway that runs entirely on free-tie
 
 The goal is not a toy demo. The goal is a constrained but real gateway with guardrails, traceability, and predictable behavior under free limits.
 
----
-
 ## 1. Context & Problem
 
 Direct client-to-LLM integration creates three problems that surface fast in production:
@@ -28,8 +26,6 @@ Direct client-to-LLM integration creates three problems that surface fast in pro
 3. **No durable audit trail** — prompts and responses vanish into provider logs you do not own.
 
 At small scale you can ignore this. In production you cannot.
-
----
 
 ## 2. Architecture Overview
 
@@ -54,8 +50,6 @@ Responsibilities are intentionally split:
 - **R2** — immutable prompt/response logs and lightweight metrics.
 
 The split matters: Auth is a security boundary, Proxy is a policy boundary, R2 is the durability boundary. Each can fail independently without compromising the others.
-
----
 
 ## 3. Auth Worker
 
@@ -92,8 +86,6 @@ Key decisions:
 - JWT validation runs on the edge — no origin round-trip per request.
 - Scope-based access (`llm:invoke`) keeps token power explicit.
 - Tenant identity is forwarded as **structured context**, not the raw token. The proxy never sees the JWT.
-
----
 
 ## 4. LLM Proxy Worker
 
@@ -162,8 +154,6 @@ async function fetchWithRetry(url: string, init: RequestInit, max = 3): Promise<
 
 Exponential backoff with jitter, capped at 3 attempts. Worker CPU time is bounded on the free tier; longer retries belong in a queue, not in the request path.
 
----
-
 ## 5. Rate Limiting
 
 Cloudflare Workers expose a native rate-limiting binding. Use it for the cheap, IP-based first line of defense:
@@ -201,8 +191,6 @@ await env.RL_KV.put(key, String(Number(count) + 1), { expirationTtl: 120 })
 
 Two layers, two purposes: native binding stops abusive traffic before it costs you CPU; tenant counter enforces fairness inside paid surface.
 
----
-
 ## 6. R2 Audit Storage
 
 Bucket layout:
@@ -237,8 +225,6 @@ export async function persistR2Log(ctx: GatewayContext, data: GatewayLog, env: E
 
 `Promise.all` lets the three writes run in parallel; on free-tier R2 the cost is dominated by request count, not bytes, so batching small JSON objects per write is intentional. For higher volume, switch to a single combined object per request and an async fan-out queue.
 
----
-
 ## 7. Client State (Zustand)
 
 The client keeps auth context in a minimal Zustand store and transmits only structured JSON.
@@ -264,8 +250,6 @@ export const useSessionStore = create<SessionState>((set) => ({
 ```
 
 Client state stays deterministic. The proxy contract stays explicit: the client cannot influence routing or model beyond what the allowlist permits.
-
----
 
 ## 8. Request Lifecycle
 
@@ -296,8 +280,6 @@ Six stages, each with a well-defined failure mode:
 5. Proxy logs prompt/response/metrics to R2 (best-effort, never blocks the response)
 6. Client receives a normalized response
 
----
-
 ## 9. Cost Model (All Free Tier)
 
 ```mermaid
@@ -314,8 +296,6 @@ Designed around quota boundaries, not paid capacity:
 - **R2** — low-volume object writes + storage within free bucket limits
 
 The system is "zero-cost" only while respecting traffic and token ceilings. The rate-limit layers above are also a cost-control mechanism, not just a security one.
-
----
 
 ## 10. Security Model
 
@@ -335,8 +315,6 @@ Recommended additions for hardening:
 - Signed request IDs for chain correlation across logs
 - Response sanitation (e.g., strip provider-specific fields)
 
----
-
 ## 11. Trade-offs
 
 What this design optimizes:
@@ -353,8 +331,6 @@ What it sacrifices:
 
 If any of these become real constraints, the gateway scales naturally to paid Workers + a queue + a real warehouse, without a redesign.
 
----
-
 ## 12. Extensions
 
 Natural next steps:
@@ -364,8 +340,6 @@ Natural next steps:
 - **Multi-provider routing** — Gemini + a fallback provider on `429`/`5xx`
 - **Per-tenant policy DSL** for model and tool permissions
 
----
-
 ## Key Takeaways
 
 - An AI gateway is a security and policy boundary first. Every direct-to-LLM client design eventually has to add one.
@@ -374,8 +348,6 @@ Natural next steps:
 - Propagate upstream `429` with `Retry-After`. Collapse upstream `5xx` to a clean `502`.
 - R2 is for durable audit logs, not for hot reads. Move analytical queries to KV/D1 or a warehouse.
 - "Zero-cost" is a quota story, not a capacity story. Design backpressure in from day one.
-
----
 
 ## See Also
 

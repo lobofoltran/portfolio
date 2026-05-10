@@ -12,8 +12,6 @@ Observability is often confused with monitoring.
 
 Monitoring tells you **that** something is wrong. Observability helps you understand **why**. In production systems — especially distributed ones — the difference is the gap between "the alert fired" and "we know what to do".
 
----
-
 ## Why Logs Alone Are Not Enough
 
 Logs are useful but limited:
@@ -25,8 +23,6 @@ Logs are useful but limited:
 
 Once a service has more than one instance, logs alone stop being sufficient. Metrics become the primary signal for *behavior over time*; logs explain a single occurrence.
 
----
-
 ## Prometheus as the Metrics Backbone
 
 Prometheus is built around a simple idea:
@@ -34,8 +30,6 @@ Prometheus is built around a simple idea:
 > **Collect numeric time-series data and make it queryable.**
 
 It excels at measuring system behavior over time, detecting trends, and alerting before users notice failures. It does not replace logs or traces — it complements them.
-
----
 
 ## Micrometer: The JVM Instrumentation Facade
 
@@ -46,8 +40,6 @@ Micrometer is a metrics facade for JVM applications. It lets you:
 - Standardize naming conventions and labels
 
 In Spring Boot, Micrometer is the de-facto standard and ships with auto-configuration for HTTP server, JDBC, JVM, and more.
-
----
 
 ## Basic Setup
 
@@ -74,8 +66,6 @@ GET /actuator/prometheus
 
 That is it. Spring Boot already publishes JVM, GC, thread, HTTP server, and DataSource metrics out of the box.
 
----
-
 ## Picking the Right Metric Type
 
 The choice matters more than the names you give. Three common types:
@@ -85,8 +75,6 @@ The choice matters more than the names you give. Three common types:
 - **Gauge** — current value (queue depth, active connections, outbox backlog). May go up or down.
 
 Counters and gauges are easy to abuse. Picking a Counter for "current users" is a common bug; picking a Gauge for "total requests" loses the ability to compute rates.
-
----
 
 ## Core Metrics Every Service Should Have
 
@@ -123,8 +111,6 @@ Gauge.builder("outbox.pending.events", outboxRepository::countPending)
 
 This connects system health to business impact: an unpublished outbox is a business problem, not just a Kafka problem.
 
----
-
 ## Histograms and Quantiles, Done Right
 
 Two failure modes are extremely common:
@@ -153,8 +139,6 @@ histogram_quantile(
 
 Native histograms reduce series count dramatically and remove the bucket-tuning problem; if your stack supports them, prefer them.
 
----
-
 ## Labels and Cardinality
 
 Labels are powerful and dangerous. Each unique combination of label values is a separate time series.
@@ -174,8 +158,6 @@ Practical guideline: **keep total active series per metric below ~10k**, and tot
 - **Exemplars** for linking a histogram bucket to one example trace ID
 
 For the centralized stack that scales these decisions, see [Centralized Observability with Prometheus, Loki, and Promtail](/blog/centralized-observability-with-prometheus-loki-promtail).
-
----
 
 ## Alerting: From Metrics to Action
 
@@ -206,15 +188,11 @@ A working alert template:
 
 If an alert lacks a runbook, an owner, and a remediation, it is noise.
 
----
-
 ## Observability as a Design Concern
 
 Observability is not an afterthought. Well-designed systems expose their internal state, make failure visible, and enable safe operation under stress. If you cannot observe a system, you cannot operate it confidently.
 
 The cheapest way to embed this is to instrument as you build: every new endpoint gets a Timer with `publishPercentileHistogram()`, every new background worker gets a Counter for processed/failed and a Gauge for backlog. The cost is low; the alternative — instrumenting after an incident — is always more expensive.
-
----
 
 ## Key Takeaways
 
@@ -223,8 +201,6 @@ The cheapest way to embed this is to instrument as you build: every new endpoint
 - Enable `publishPercentileHistogram()` on Timers — without it, server-side aggregated percentiles are not possible.
 - Cardinality is the silent killer. Keep label values bounded; push high-cardinality data to logs, traces, or exemplars.
 - Alerts must reflect user impact, not raw resource thresholds, and must come with a runbook.
-
----
 
 ## See Also
 
